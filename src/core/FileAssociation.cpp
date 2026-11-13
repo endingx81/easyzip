@@ -358,29 +358,33 @@ namespace EasyZip
         };
 
         const wchar_t* blockedKeyPath = L"Software\\Microsoft\\Windows\\CurrentVersion\\Shell Extensions\\Blocked";
+        const HKEY rootKeys[] = { HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER };
 
-        if (block)
+        for (HKEY root : rootKeys)
         {
-            HKEY hKey = NULL;
-            if (RegCreateKeyExW(HKEY_CURRENT_USER, blockedKeyPath, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS)
+            if (block)
             {
-                for (const auto* clsid : blockedClsids)
+                HKEY hKey = NULL;
+                if (RegCreateKeyExW(root, blockedKeyPath, 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS)
                 {
-                    RegSetValueExW(hKey, clsid, 0, REG_SZ, reinterpret_cast<const BYTE*>(L""), sizeof(wchar_t));
+                    for (const auto* clsid : blockedClsids)
+                    {
+                        RegSetValueExW(hKey, clsid, 0, REG_SZ, reinterpret_cast<const BYTE*>(L""), sizeof(wchar_t));
+                    }
+                    RegCloseKey(hKey);
                 }
-                RegCloseKey(hKey);
             }
-        }
-        else
-        {
-            HKEY hKey = NULL;
-            if (RegOpenKeyExW(HKEY_CURRENT_USER, blockedKeyPath, 0, KEY_WRITE, &hKey) == ERROR_SUCCESS)
+            else
             {
-                for (const auto* clsid : blockedClsids)
+                HKEY hKey = NULL;
+                if (RegOpenKeyExW(root, blockedKeyPath, 0, KEY_WRITE, &hKey) == ERROR_SUCCESS)
                 {
-                    RegDeleteValueW(hKey, clsid);
+                    for (const auto* clsid : blockedClsids)
+                    {
+                        RegDeleteValueW(hKey, clsid);
+                    }
+                    RegCloseKey(hKey);
                 }
-                RegCloseKey(hKey);
             }
         }
     }
