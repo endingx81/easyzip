@@ -1,0 +1,145 @@
+<Window x:Class="EasyZip.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="환경설정 - EasyZip" Height="520" Width="640"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Icon="pack://application:,,,/assets/EasyZip.ico"
+        Background="#F9FAFB"
+        FontFamily="Segoe UI, Malgun Gothic">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 타이틀 바 -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,16">
+            <Image Source="pack://application:,,,/assets/EasyZip.png" Width="24" Height="24" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock Text="EasyZip 환경설정" FontSize="18" FontWeight="Bold" Foreground="#111827" VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <!-- 탭 컨트롤 -->
+        <TabControl Grid.Row="1" Background="White" BorderBrush="#E5E7EB">
+            <!-- 탭 1: 윈도우 탐색기 마우스 우클릭 메뉴 -->
+            <TabItem Header="윈도우 탐색기 우클릭 메뉴">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
+                    <StackPanel>
+                        <TextBlock Text="마우스 오른쪽 버튼 클릭 시 표시할 메뉴 항목을 선택하세요." 
+                                   Foreground="#4B5563" FontSize="13" Margin="0,0,0,16"/>
+
+                        <!-- 압축 파일 우클릭 -->
+                        <GroupBox Header="압축 파일 우클릭 시" Padding="12" Margin="0,0,0,14" BorderBrush="#E5E7EB">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkExtractHere" Content="EasyZip으로 여기에 압축 풀기 (Extract Here)" IsChecked="True" Margin="0,0,0,8"/>
+                                <CheckBox x:Name="ChkExtractToFolder" Content="EasyZip으로 각각의 폴더에 압축 풀기 (Extract to [Folder]\)" IsChecked="True" Margin="0,0,0,8"/>
+                                <CheckBox x:Name="ChkOpenWith" Content="EasyZip으로 열기" IsChecked="True"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- 일반 파일/폴더 우클릭 -->
+                        <GroupBox Header="일반 파일 및 폴더 우클릭 시" Padding="12" Margin="0,0,0,14" BorderBrush="#E5E7EB">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkCompress" Content="EasyZip으로 압축하기 (대화상자)" IsChecked="True" Margin="0,0,0,8"/>
+                                <CheckBox x:Name="ChkQuickZip" Content="EasyZip으로 빠른 ZIP 압축" IsChecked="True"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- 폴더 및 바탕화면 배경 우클릭 -->
+                        <GroupBox Header="폴더 빈 공간 및 바탕화면 우클릭 시 (새 폴더)" Padding="12" Margin="0,0,0,14" BorderBrush="#E5E7EB">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkNewFolder" Content="새 폴더 만들기 (&amp;N)" IsChecked="True"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- 컨텍스트 메뉴 버튼들 -->
+                        <WrapPanel Margin="0,6,0,0">
+                            <Button x:Name="BtnApplyContextMenu" Content="우클릭 메뉴 등록 / 적용" Width="170" Height="34" Margin="0,0,10,6"
+                                    Background="#2563EB" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand"
+                                    Click="BtnApplyContextMenu_Click"/>
+                            <Button x:Name="BtnRemoveContextMenu" Content="우클릭 메뉴 전체 해제" Width="160" Height="34" Margin="0,0,10,6"
+                                    Background="#E5E7EB" Foreground="#374151" BorderThickness="0" Cursor="Hand"
+                                    Click="BtnRemoveContextMenu_Click"/>
+                        </WrapPanel>
+                        <TextBlock x:Name="TxtContextMenuStatus" Foreground="#16A34A" FontSize="12" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- 탭 2: 파일 확장자 연결 -->
+            <TabItem Header="파일 확장자 연결">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="EasyZip과 연결할 압축 파일 확장자를 선택하세요." Foreground="#4B5563" FontSize="13" Margin="0,0,0,10"/>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button x:Name="BtnSelectAllExt" Content="모두 선택" Width="80" Height="28" Margin="0,0,8,0"
+                                Background="#F3F4F6" BorderBrush="#D1D5DB" Click="BtnSelectAllExt_Click"/>
+                        <Button x:Name="BtnDeselectAllExt" Content="모두 해제" Width="80" Height="28"
+                                Background="#F3F4F6" BorderBrush="#D1D5DB" Click="BtnDeselectAllExt_Click"/>
+                    </StackPanel>
+
+                    <!-- 확장자 체크박스 리스트 -->
+                    <Border Grid.Row="2" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="4" Background="#FAFAFA" Padding="10">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <WrapPanel x:Name="WrapExtensions" ItemWidth="185" ItemHeight="32"/>
+                        </ScrollViewer>
+                    </Border>
+
+                    <!-- 하단 적용 버튼 -->
+                    <StackPanel Grid.Row="3" Margin="0,12,0,0">
+                        <WrapPanel>
+                            <Button x:Name="BtnApplyAssociations" Content="선택한 확장자 연결 적용" Width="170" Height="34" Margin="0,0,8,6"
+                                    Background="#2563EB" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand"
+                                    Click="BtnApplyAssociations_Click"/>
+                            <Button x:Name="BtnOpenDefaultApps" Content="Windows 기본 앱 설정 열기" Width="195" Height="34" Margin="0,0,8,6"
+                                    Background="#10B981" Foreground="White" FontWeight="SemiBold" BorderThickness="0" Cursor="Hand"
+                                    Click="BtnOpenDefaultApps_Click"/>
+                            <Button x:Name="BtnUnassociateAll" Content="연결 전체 해제" Width="110" Height="34" Margin="0,0,0,6"
+                                    Background="#E5E7EB" Foreground="#374151" BorderThickness="0" Cursor="Hand"
+                                    Click="BtnUnassociateAll_Click"/>
+                        </WrapPanel>
+                        <TextBlock x:Name="TxtAssocStatus" VerticalAlignment="Center" Foreground="#16A34A" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- 탭 3: 초고속 엔진 설정 -->
+            <TabItem Header="초고속 엔진 및 일반">
+                <Border Padding="16">
+                    <StackPanel>
+                        <GroupBox Header="고속 압축 풀기 최적화" Padding="12" Margin="0,0,0,14" BorderBrush="#E5E7EB">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkMultiThread" Content="멀티스레드 병렬 압축 해제 활성화 (CPU 멀티코어 최대 활용)" IsChecked="True" Margin="0,0,0,8"/>
+                                <CheckBox x:Name="ChkOpenDestFolder" Content="압축 해제 완료 후 대상 폴더 열기" IsChecked="True" Margin="0,0,0,8"/>
+                                <TextBlock Text="* ZIP 파일의 경우 파일 단위로 모든 CPU 코어와 NVMe 속도를 최대치로 끌어냅니다." 
+                                           Foreground="#6B7280" FontSize="11" Margin="20,0,0,0"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <GroupBox Header="시스템 정보" Padding="12" BorderBrush="#E5E7EB">
+                            <StackPanel>
+                                <TextBlock x:Name="TxtCpuInfo" Text="CPU 스레드: 16 스레드" Foreground="#4B5563" Margin="0,0,0,4"/>
+                                <TextBlock Text="EasyZip 버전: 1.0.0 (Ultra-Fast 64-bit)" Foreground="#4B5563"/>
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </Border>
+            </TabItem>
+        </TabControl>
+
+        <!-- 하단 닫기 버튼 -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button x:Name="BtnClose" Content="닫기" Width="90" Height="32"
+                    Background="#2563EB" Foreground="White" FontWeight="SemiBold"
+                    BorderThickness="0" Cursor="Hand" Click="BtnClose_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

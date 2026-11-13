@@ -1,0 +1,13 @@
+prefix=D:/a/libarchive/libarchive/install-static
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: libarchive
+Description: library that can create and read several streaming archive formats
+Version: 3.8.11
+Cflags: -I${includedir}
+Cflags.private: -DLIBARCHIVE_STATIC
+Libs: -L${libdir} -larchive
+Libs.private:  -loptimized -lzs -ldebug -lzsd -loptimized -lbz2 -ldebug -lbz2d -loptimized -llzma -ldebug -llzma -llz4 -lzstd -lbcrypt -loptimized -lcrypto -ldebug -lcrypto -liconv -lcharset -ldebug -lxml2 -loptimized -lxml2 -liconv -lcharset -loptimized -lzs -ldebug -lzsd -lBcrypt
+Requires.private: 

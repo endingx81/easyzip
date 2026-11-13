@@ -1,0 +1,48 @@
+<Window x:Class="EasyZip.Views.NewFolderDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="새 폴더 만들기 - EasyZip" Height="190" Width="420"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Icon="pack://application:,,,/assets/EasyZip.ico"
+        Background="#F9FAFB"
+        FontFamily="Segoe UI, Malgun Gothic">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="새로 만들 폴더의 이름을 입력하세요:" 
+                   FontWeight="SemiBold" FontSize="14" Foreground="#111827" Margin="0,0,0,12"/>
+
+        <TextBox x:Name="TxtFolderName" Grid.Row="1" Height="34" 
+                 FontSize="14" VerticalContentAlignment="Center" Padding="8,0"
+                 BorderBrush="#D1D5DB" BorderThickness="1"
+                 Background="#FFFFFF"
+                 KeyDown="TxtFolderName_KeyDown"/>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,15,0,0">
+            <Button x:Name="BtnOk" Content="만들기" Width="90" Height="32" Margin="0,0,10,0"
+                    Background="#2563EB" Foreground="White" FontWeight="SemiBold"
+                    BorderThickness="0" Cursor="Hand" Click="BtnOk_Click">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="4"/>
+                    </Style>
+                </Button.Resources>
+            </Button>
+            <Button x:Name="BtnCancel" Content="취소" Width="80" Height="32"
+                    Background="#E5E7EB" Foreground="#374151" FontWeight="Medium"
+                    BorderThickness="0" Cursor="Hand" Click="BtnCancel_Click">
+                <Button.Resources>
+                    <Style TargetType="Border">
+                        <Setter Property="CornerRadius" Value="4"/>
+                    </Style>
+                </Button.Resources>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>
+

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>EasyZip</AssemblyName>
+    <RootNamespace>EasyZip</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Version>1.0.0</Version>
+    <Authors>EasyZip Team</Authors>
+    <Company>EasyZip</Company>
+    <Product>EasyZip Ultra-Fast Archiver</Product>
+    <ApplicationIcon>assets\EasyZip.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="assets\EasyZip.ico" />
+    <Resource Include="assets\EasyZip.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="EggDotNet" Version="0.4.0" />
+    <PackageReference Include="SharpCompress" Version="0.50.8" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="installer\**" />
+    <None Remove="installer\**" />
+    <Page Remove="installer\**" />
+    <ApplicationDefinition Remove="installer\**" />
+  </ItemGroup>
+</Project>

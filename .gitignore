@@ -1,0 +1,27 @@
+# Build artifacts
+.vs/
+obj/
+bin/
+dist/
+*.obj
+*.exe
+*.dll
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.user
+*.log
+*.tlog
+*.idb
+*.ipch
+
+# Keep third_party libs and DLLs
+!third_party/**
+
+# Temp / scratch test files
+test_*.*
+scratch_*.*
+selftest_result.log
+downloads_test_result.txt
+새 폴더/
