@@ -41,7 +41,7 @@ AI 에이전트(당신)가 개발 중 **실제로 저질렀던 치명적인 실�
   - **실제 실수**: 설치 프로그램(Setup.exe) 생성 지시를 받았을 때, 프로젝트 환경에 구축된 자체 빌더를 확인하지 않고 Inno Setup(`iscc`), NSIS(`makensis`) 등 엉뚱한 외부 도구를 찾으며 헤매고 시간을 지체함. 동일 워크스페이스 그룹(`D:\coding\visualstudio\easyinstall`)에 전용 인스톨러 빌더가 이미 완성되어 있음에도 이를 즉시 활용하지 못함.
   - **방지 원칙 (표준 배포 패키징 파이프라인)**:
     1. **단일 설치 파일 빌더 절대 경로**:  
-       `& "D:\coding\visualstudio\easyinstall\bin\Release\easyinstall.exe" -i "<입력_바이너리_또는_폴더>" -o "<출력경로>\EasyZipSetup.exe" -n "EasyZip" -v "<버전>" -p "purestory" -m "EasyZip.exe"`
+       `& "D:\coding\visualstudio\easyinstall\bin\Release\easyinstall.exe" -i "<입력_바이너리_또는_폴더>" -o "<출력경로>\EasyZipSetup.exe" -n "EasyZip" -v "<버전>" -p "ai-open.kr" -m "EasyZip.exe"`
        > [!CAUTION]
        > **단일 파일 vs 폴더 패키징 맹점 방지**: DLL(`EasyZipShell.dll` 등) 동적 의존 파일이 있는 프로젝트에서 `-i`에 단일 `exe` 경로만 전달하면 부속 파일들이 패키징에서 전부 누락됨. 따라서 반드시 **바이너리 전체가 빌드된 폴더(`bin\Release`)를 `-i`로 전달**하여 모든 종속 파일이 100% 동봉되도록 할 것!
     2. **무설치 포터블 압축 아카이브 생성**:  

@@ -189,7 +189,7 @@ BEGIN
     ICON            IDI_APP_ICON, IDC_STATIC, 16, 16, 32, 32
     LTEXT           "EasyZip v1.1.1 (x64 Native)", IDC_STATIC, 60, 16, 160, 12, SS_NOPREFIX
     LTEXT           "초고속 네이티브 C++ 아카이버", IDC_STATIC, 60, 32, 160, 12
-    LTEXT           "Copyright (C) 2026 purestory. All rights reserved.", IDC_STATIC, 60, 50, 168, 18
+    LTEXT           "Copyright (C) 2026 ai-open.kr. All rights reserved.", IDC_STATIC, 60, 50, 168, 18
     LTEXT           "ZIP, 7Z, RAR, ALZ, EGG, TAR, GZ, BZ2, XZ 지원", IDC_STATIC, 60, 72, 168, 12
     DEFPUSHBUTTON   "확인", IDOK, 90, 98, 60, 16
 END
@@ -212,11 +212,11 @@ BEGIN
     BEGIN
         BLOCK "041204b0"
         BEGIN
-            VALUE "CompanyName",      "purestory"
+            VALUE "CompanyName",      "ai-open.kr"
             VALUE "FileDescription",  "EasyZip High Performance Archiver"
             VALUE "FileVersion",      "1.1.2.0"
             VALUE "InternalName",     "EasyZip"
-            VALUE "LegalCopyright",   "Copyright (C) 2026 purestory. All rights reserved."
+            VALUE "LegalCopyright",   "Copyright (C) 2026 ai-open.kr. All rights reserved."
             VALUE "OriginalFilename", "EasyZip.exe"
             VALUE "ProductName",      "EasyZip"
             VALUE "ProductVersion",   "1.1.2.0"
