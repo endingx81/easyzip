@@ -279,9 +279,12 @@ AI 에이전트(당신)가 개발 중 **실제로 저질렀던 치명적인 실�
   4. **삭제/해제 시 100% 원상 복구 (`FileAssociation::BlockWindowsDefaultZipMenu(false)`)**: `UnregisterAll()` 및 `UnregisterShellMenu()` 호출 시 `RegDeleteValueW`로 위 CLSID들을 삭제하고, `Uninstaller.cpp`에서도 2중 Fail-Safe로 값을 제거하여 프로그램 삭제 시 윈도우 기본 압축 풀기 메뉴가 즉시 정상 복원되도록 보장할 것.
   5. 변경 후에는 `SHChangeNotify(SHCNE_ASSOCCHANGED)`를 호출하여 탐색기 프로세스를 끄지 않고도 즉각 반영할 것.
 
-
-
-
-
-
-
+### 📦 외부 C/C++ 서드파티 라이브러리(libarchive) 배포 DLL 명칭 불일치 맹점 및 단일화 원칙
+- **실제 실수**:
+  - `EasyZip.exe`가 링크하는 `libarchive.lib`의 실제 내부 Import 모듈명이 `archive.dll`로 선언되어 있었음.
+  - 그러나 프로젝트와 배포 패키지(`dist\EasyZip`)에는 `libarchive.dll`이라는 이름으로 패키징하여, 개발자 PC에서는 우연히 환경변수 PATH(Anaconda 등)에 있던 `archive.dll`이 로드되어 정상 동작했으나, **클린 PC에 설치했을 때 "archive.dll이 없어 코드 실행을 진행할 수 없습니다"라는 치명적 로더 오류가 발생**함.
+  - 게다가 이에 대한 초기 해결책으로 `archive.dll`과 `libarchive.dll` 두 개를 중복 복사하여 배포하겠다는 황당한 제안을 하여 불필요한 용량 낭비(3.5MB 중복)를 초래할 뻔함.
+- **방지 원칙**:
+  1. **Import Library 실제 의존성 명칭 검증 (`dumpbin`)**: 서드파티 라이브러리를 동적 링크할 때는 파일명이 아닌 Import Library 내부의 DLL 선언명(`dumpbin /archivemembers xxx.lib` 또는 `dumpbin /dependents exe`)을 반드시 사전에 확인하여 실제 시스템 로더가 찾는 DLL 이름을 정확히 확인할 것.
+  2. **단일 원본 DLL 파일명 정규화**: 불필요한 중복 복사(3.5MB 2개 배포 등)는 절대 금지하며, `third_party\libarchive\bin\archive.dll`, `EasyZip.vcxproj`의 PostBuildEvent 복사 명령, 그리고 `dist\EasyZip` 스테이징 폴더 전체에서 **오직 단 하나의 정식 파일명인 `archive.dll`로 일원화**하여 1개만 정갈하게 배포할 것.
+  3. **클린 환경 격리 테스트 필수**: 개발자 PC 환경변수(PATH) 오염으로 인한 오탐을 방지하기 위해, 바이너리 검증 시 반드시 `set PATH=C:\Windows\system32`와 같이 격리된 PATH 환경에서 실행 테스트를 수행하여 누락된 DLL이 없는지 100% 확증할 것.

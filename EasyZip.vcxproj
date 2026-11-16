@@ -73,7 +73,7 @@
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y "$(ProjectDir)third_party\libarchive\bin\libarchive.dll" "$(OutDir)" &gt;nul
+      <Command>copy /y "$(ProjectDir)third_party\libarchive\bin\archive.dll" "$(OutDir)archive.dll" &gt;nul
 copy /y "$(ProjectDir)res\EasyZip.ico" "$(OutDir)" &gt;nul</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -101,7 +101,7 @@ copy /y "$(ProjectDir)res\EasyZip.ico" "$(OutDir)" &gt;nul</Command>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y "$(ProjectDir)third_party\libarchive\bin\libarchive.dll" "$(OutDir)" &gt;nul
+      <Command>copy /y "$(ProjectDir)third_party\libarchive\bin\archive.dll" "$(OutDir)archive.dll" &gt;nul
 copy /y "$(ProjectDir)res\EasyZip.ico" "$(OutDir)" &gt;nul</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
