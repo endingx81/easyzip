@@ -288,3 +288,12 @@ AI 에이전트(당신)가 개발 중 **실제로 저질렀던 치명적인 실�
   1. **Import Library 실제 의존성 명칭 검증 (`dumpbin`)**: 서드파티 라이브러리를 동적 링크할 때는 파일명이 아닌 Import Library 내부의 DLL 선언명(`dumpbin /archivemembers xxx.lib` 또는 `dumpbin /dependents exe`)을 반드시 사전에 확인하여 실제 시스템 로더가 찾는 DLL 이름을 정확히 확인할 것.
   2. **단일 원본 DLL 파일명 정규화**: 불필요한 중복 복사(3.5MB 2개 배포 등)는 절대 금지하며, `third_party\libarchive\bin\archive.dll`, `EasyZip.vcxproj`의 PostBuildEvent 복사 명령, 그리고 `dist\EasyZip` 스테이징 폴더 전체에서 **오직 단 하나의 정식 파일명인 `archive.dll`로 일원화**하여 1개만 정갈하게 배포할 것.
   3. **클린 환경 격리 테스트 필수**: 개발자 PC 환경변수(PATH) 오염으로 인한 오탐을 방지하기 위해, 바이너리 검증 시 반드시 `set PATH=C:\Windows\system32`와 같이 격리된 PATH 환경에서 실행 테스트를 수행하여 누락된 DLL이 없는지 100% 확증할 것.
+
+### 📚 분할 압축(Multi-volume Split) 아카이브 볼륨 단절 방지 및 자동 연속 해제 원칙 (`archive_read_open_filenames_w`)
+- **실제 실수**:
+  - `archive_read_open_filename_w` 단일 파일 API만 사용하여 아카이브를 열었기 때문에, 대용량 분할 압축(예: `Shadow of the Colossus.part1.rar` ~ `part6.rar`)을 풀 때 첫 번째 볼륨(2GB) 끝에 도달하자 다음 조각을 이어받지 못하고 EOF(0바이트)를 만나 `Too small block encountered (0 bytes)` 치명적 에러를 뿜으며 해제가 중단됨.
+  - 또한 사용자가 탐색기에서 다수의 분할 파트(`part1`~`part6`)를 한꺼번에 다중 선택하여 우클릭 압축 풀기를 지시했을 때, 동일 분할 세트에 대한 중복 제거가 없어 동일 아카이브를 파트 개수만큼 중복으로 풀어버릴 위험이 있었음.
+- **방지 원칙**:
+  1. **다중 볼륨 자동 수집 (`PathHelper::GetVolumeFiles`)**: 현대식 RAR(`.part1.rar`..), 7z/분할 번호(`.001`..), 구형 WinRAR(`.rar`, `.r00`..), PKZIP 분할(`.z01`..`.zip`) 등 분할 압축 패턴을 자동 감지하여, 사용자가 어떤 파트를 열더라도 항상 1번 볼륨부터 N번 볼륨까지 연속된 전체 파일 목록을 올바른 순서로 수집할 것.
+  2. **다중 볼륨 통합 오픈 (`ArchiveEngine::OpenArchiveRead`)**: 분할 볼륨이 2개 이상 감지되면 단일 파일 API 대신 `archive_read_open_filenames_w`에 NULL-terminated 볼륨 경로 배열을 전달하여, libarchive가 볼륨 경계를 투명하게 넘나들며 100% 완전 해제되도록 할 것.
+  3. **다중 선택 중복 해제 필터링 (`FilterMultiVolumeDuplicates`)**: 탐색기에서 사용자가 분할 볼륨 여러 개를 동시에 선택하더라도 동일 아카이브 세트는 대표 볼륨(part1) 1개로 일원화 필터링하여 중복 해제 폭주를 원천 차단할 것.

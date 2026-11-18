@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
+#include <regex>
+#include <unordered_set>
 
 #pragma comment(lib, "shlwapi.lib")
 
@@ -36,9 +38,25 @@ namespace EasyZip
     std::wstring PathHelper::GetArchiveBaseName(const std::wstring& path)
     {
         std::wstring name = GetFileName(path);
+
+        // 1. Check modern multi-part pattern: <base>.part(\d+).<ext> (e.g. .part1.rar, .part02.rar, .part001.rar)
+        static const std::wregex partRegex(LR"(^(.*)\.part\d+\.[a-zA-Z0-9]+$)", std::regex_constants::icase);
+        std::wsmatch m;
+        if (std::regex_match(name, m, partRegex))
+        {
+            return m[1].str();
+        }
+
+        // 2. Check numeric split extension: <base>.(7z|zip|tar)\.(\d{3,})$ or <base>\.(\d{3,})$
+        static const std::wregex numSplitRegex(LR"(^(.*)\.(?:7z|zip|tar)\.\d{3,}$)", std::regex_constants::icase);
+        if (std::regex_match(name, m, numSplitRegex))
+        {
+            return m[1].str();
+        }
+
         static const std::vector<std::wstring> compoundExts = {
             L".tar.gz", L".tar.bz2", L".tar.xz", L".tar.zst",
-            L".7z.001", L".zip.001", L".part01.rar", L".part1.rar"
+            L".7z.001", L".zip.001"
         };
 
         std::wstring lowerName = name;
@@ -54,6 +72,236 @@ namespace EasyZip
         }
 
         return GetFileNameWithoutExtension(path);
+    }
+
+    std::vector<std::wstring> PathHelper::GetVolumeFiles(const std::wstring& archivePath)
+    {
+        std::vector<std::wstring> defaultResult = { archivePath };
+        std::wstring dir = GetDirectory(archivePath);
+        std::wstring fileName = GetFileName(archivePath);
+        if (fileName.empty()) return defaultResult;
+
+        // 1. Check modern multi-part pattern: <base>.part(\d+).<ext> (e.g. .part1.rar, .part01.rar, .part1.7z)
+        static const std::wregex partRegex(LR"(^(.*)\.part(\d+)\.([a-zA-Z0-9]+)$)", std::regex_constants::icase);
+        std::wsmatch m;
+        if (std::regex_match(fileName, m, partRegex))
+        {
+            std::wstring basePrefix = m[1].str();
+            std::wstring ext = m[3].str();
+            std::wstring searchPattern = Combine(dir, basePrefix + L".part*." + ext);
+
+            WIN32_FIND_DATAW ffd;
+            HANDLE hFind = FindFirstFileW(searchPattern.c_str(), &ffd);
+            if (hFind != INVALID_HANDLE_VALUE)
+            {
+                std::vector<std::pair<int, std::wstring>> foundParts;
+                do
+                {
+                    if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                    {
+                        std::wstring curName = ffd.cFileName;
+                        std::wsmatch curMatch;
+                        if (std::regex_match(curName, curMatch, partRegex))
+                        {
+                            if (_wcsicmp(curMatch[1].str().c_str(), basePrefix.c_str()) == 0 &&
+                                _wcsicmp(curMatch[3].str().c_str(), ext.c_str()) == 0)
+                            {
+                                int partNum = _wtoi(curMatch[2].str().c_str());
+                                foundParts.push_back({ partNum, Combine(dir, curName) });
+                            }
+                        }
+                    }
+                } while (FindNextFileW(hFind, &ffd));
+                FindClose(hFind);
+
+                if (foundParts.size() > 1)
+                {
+                    std::sort(foundParts.begin(), foundParts.end(), [](const auto& a, const auto& b) {
+                        return a.first < b.first;
+                    });
+                    std::vector<std::wstring> result;
+                    result.reserve(foundParts.size());
+                    for (const auto& p : foundParts)
+                    {
+                        result.push_back(p.second);
+                    }
+                    return result;
+                }
+            }
+        }
+
+        // 2. Check numeric split extension pattern: <base>.(\d{3,}) (e.g. .7z.001, .zip.001, .001)
+        static const std::wregex numSplitRegex(LR"(^(.*)\.(\d{3,})$)", std::regex_constants::icase);
+        if (std::regex_match(fileName, m, numSplitRegex))
+        {
+            std::wstring basePrefix = m[1].str();
+            std::wstring searchPattern = Combine(dir, basePrefix + L".*");
+
+            WIN32_FIND_DATAW ffd;
+            HANDLE hFind = FindFirstFileW(searchPattern.c_str(), &ffd);
+            if (hFind != INVALID_HANDLE_VALUE)
+            {
+                std::vector<std::pair<int, std::wstring>> foundParts;
+                do
+                {
+                    if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                    {
+                        std::wstring curName = ffd.cFileName;
+                        std::wsmatch curMatch;
+                        if (std::regex_match(curName, curMatch, numSplitRegex))
+                        {
+                            if (_wcsicmp(curMatch[1].str().c_str(), basePrefix.c_str()) == 0)
+                            {
+                                int partNum = _wtoi(curMatch[2].str().c_str());
+                                foundParts.push_back({ partNum, Combine(dir, curName) });
+                            }
+                        }
+                    }
+                } while (FindNextFileW(hFind, &ffd));
+                FindClose(hFind);
+
+                if (foundParts.size() > 1)
+                {
+                    std::sort(foundParts.begin(), foundParts.end(), [](const auto& a, const auto& b) {
+                        return a.first < b.first;
+                    });
+                    std::vector<std::wstring> result;
+                    result.reserve(foundParts.size());
+                    for (const auto& p : foundParts)
+                    {
+                        result.push_back(p.second);
+                    }
+                    return result;
+                }
+            }
+        }
+
+        // 3. Check legacy WinRAR multi-volume: <base>.rar, <base>.r00, <base>.r01 ...
+        static const std::wregex rarLegacyRegex(LR"(^(.*)\.(rar|r\d{2,})$)", std::regex_constants::icase);
+        if (std::regex_match(fileName, m, rarLegacyRegex))
+        {
+            std::wstring basePrefix = m[1].str();
+            std::wstring rarFile = Combine(dir, basePrefix + L".rar");
+            std::wstring searchPattern = Combine(dir, basePrefix + L".r*");
+
+            WIN32_FIND_DATAW ffd;
+            HANDLE hFind = FindFirstFileW(searchPattern.c_str(), &ffd);
+            if (hFind != INVALID_HANDLE_VALUE)
+            {
+                std::vector<std::pair<int, std::wstring>> foundRParts;
+                static const std::wregex rNumRegex(LR"(^(.*)\.r(\d{2,})$)", std::regex_constants::icase);
+                do
+                {
+                    if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                    {
+                        std::wstring curName = ffd.cFileName;
+                        std::wsmatch curMatch;
+                        if (std::regex_match(curName, curMatch, rNumRegex))
+                        {
+                            if (_wcsicmp(curMatch[1].str().c_str(), basePrefix.c_str()) == 0)
+                            {
+                                int partNum = _wtoi(curMatch[2].str().c_str());
+                                foundRParts.push_back({ partNum, Combine(dir, curName) });
+                            }
+                        }
+                    }
+                } while (FindNextFileW(hFind, &ffd));
+                FindClose(hFind);
+
+                if (!foundRParts.empty())
+                {
+                    std::sort(foundRParts.begin(), foundRParts.end(), [](const auto& a, const auto& b) {
+                        return a.first < b.first;
+                    });
+                    std::vector<std::wstring> result;
+                    if (FileExists(rarFile))
+                    {
+                        result.push_back(rarFile);
+                    }
+                    for (const auto& p : foundRParts)
+                    {
+                        result.push_back(p.second);
+                    }
+                    if (result.size() > 1) return result;
+                }
+            }
+        }
+
+        // 4. Check split PKZIP: <base>.z01, <base>.z02 ... <base>.zip
+        static const std::wregex zipSplitRegex(LR"(^(.*)\.(zip|z\d{2,})$)", std::regex_constants::icase);
+        if (std::regex_match(fileName, m, zipSplitRegex))
+        {
+            std::wstring basePrefix = m[1].str();
+            std::wstring zipFile = Combine(dir, basePrefix + L".zip");
+            std::wstring searchPattern = Combine(dir, basePrefix + L".z*");
+
+            WIN32_FIND_DATAW ffd;
+            HANDLE hFind = FindFirstFileW(searchPattern.c_str(), &ffd);
+            if (hFind != INVALID_HANDLE_VALUE)
+            {
+                std::vector<std::pair<int, std::wstring>> foundZParts;
+                static const std::wregex zNumRegex(LR"(^(.*)\.z(\d{2,})$)", std::regex_constants::icase);
+                do
+                {
+                    if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+                    {
+                        std::wstring curName = ffd.cFileName;
+                        std::wsmatch curMatch;
+                        if (std::regex_match(curName, curMatch, zNumRegex))
+                        {
+                            if (_wcsicmp(curMatch[1].str().c_str(), basePrefix.c_str()) == 0)
+                            {
+                                int partNum = _wtoi(curMatch[2].str().c_str());
+                                foundZParts.push_back({ partNum, Combine(dir, curName) });
+                            }
+                        }
+                    }
+                } while (FindNextFileW(hFind, &ffd));
+                FindClose(hFind);
+
+                if (!foundZParts.empty())
+                {
+                    std::sort(foundZParts.begin(), foundZParts.end(), [](const auto& a, const auto& b) {
+                        return a.first < b.first;
+                    });
+                    std::vector<std::wstring> result;
+                    for (const auto& p : foundZParts)
+                    {
+                        result.push_back(p.second);
+                    }
+                    if (FileExists(zipFile))
+                    {
+                        result.push_back(zipFile);
+                    }
+                    if (result.size() > 1) return result;
+                }
+            }
+        }
+
+        return defaultResult;
+    }
+
+    std::vector<std::wstring> PathHelper::FilterMultiVolumeDuplicates(const std::vector<std::wstring>& archives)
+    {
+        std::vector<std::wstring> filtered;
+        std::unordered_set<std::wstring> seenPrimaryVolumes;
+
+        for (const auto& arc : archives)
+        {
+            std::vector<std::wstring> vols = GetVolumeFiles(arc);
+            std::wstring primaryVol = vols.empty() ? arc : vols.front();
+
+            std::wstring normPrimary = Normalize(primaryVol);
+            std::transform(normPrimary.begin(), normPrimary.end(), normPrimary.begin(), ::towlower);
+
+            if (seenPrimaryVolumes.find(normPrimary) == seenPrimaryVolumes.end())
+            {
+                seenPrimaryVolumes.insert(normPrimary);
+                filtered.push_back(primaryVol);
+            }
+        }
+
+        return filtered;
     }
 
     std::wstring PathHelper::GetExtension(const std::wstring& path)

@@ -6,6 +6,8 @@
 #include <functional>
 #include <cstdint>
 
+struct archive;
+
 namespace EasyZip
 {
     struct ArchiveEntry
@@ -39,6 +41,9 @@ namespace EasyZip
     {
     public:
         static bool IsSupportedArchive(const std::wstring& path);
+
+        // Opens single or multi-volume archive using appropriate libarchive API
+        static int OpenArchiveRead(struct archive* a, const std::wstring& archivePath, size_t bufferSize);
 
         // Checks if an archive contains only a single root folder (for Smart Extract)
         static bool IsSingleFolderArchive(

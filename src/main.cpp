@@ -296,17 +296,20 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow)
 
         if (commandMode == L"extract_here")
         {
-            PerformExtractHere(batchedPaths);
+            std::vector<std::wstring> uniqueArchives = PathHelper::FilterMultiVolumeDuplicates(batchedPaths);
+            PerformExtractHere(uniqueArchives);
             return 0;
         }
         else if (commandMode == L"smart_extract")
         {
-            PerformSmartExtract(batchedPaths);
+            std::vector<std::wstring> uniqueArchives = PathHelper::FilterMultiVolumeDuplicates(batchedPaths);
+            PerformSmartExtract(uniqueArchives);
             return 0;
         }
         else if (commandMode == L"extract_folder")
         {
-            PerformExtractToFolder(batchedPaths);
+            std::vector<std::wstring> uniqueArchives = PathHelper::FilterMultiVolumeDuplicates(batchedPaths);
+            PerformExtractToFolder(uniqueArchives);
             return 0;
         }
         else if (commandMode == L"fast_zip")

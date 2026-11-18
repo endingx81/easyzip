@@ -16,6 +16,9 @@ namespace EasyZip
         static std::wstring GetArchiveBaseName(const std::wstring& path);
         static std::wstring GetExtension(const std::wstring& path);
         
+        static std::vector<std::wstring> GetVolumeFiles(const std::wstring& archivePath);
+        static std::vector<std::wstring> FilterMultiVolumeDuplicates(const std::vector<std::wstring>& archives);
+        
         static std::wstring Combine(const std::wstring& path1, const std::wstring& path2);
         static std::wstring Normalize(const std::wstring& path);
         static std::wstring SanitizeRelativePath(const std::wstring& path);

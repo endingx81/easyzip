@@ -84,7 +84,34 @@ namespace EasyZip
             L".bz2", L".tbz2", L".xz", L".txz", L".iso", L".cab",
             L".alz", L".egg", L".001"
         };
-        return s_exts.find(ext) != s_exts.end();
+        if (s_exts.find(ext) != s_exts.end()) return true;
+
+        if (ext.length() == 4 && (ext[1] == L'r' || ext[1] == L'z') &&
+            iswdigit(ext[2]) && iswdigit(ext[3]))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    int ArchiveEngine::OpenArchiveRead(struct archive* a, const std::wstring& archivePath, size_t bufferSize)
+    {
+        std::vector<std::wstring> volumes = PathHelper::GetVolumeFiles(archivePath);
+        if (volumes.size() <= 1)
+        {
+            return archive_read_open_filename_w(a, archivePath.c_str(), bufferSize);
+        }
+
+        std::vector<const wchar_t*> volPtrs;
+        volPtrs.reserve(volumes.size() + 1);
+        for (const auto& v : volumes)
+        {
+            volPtrs.push_back(v.c_str());
+        }
+        volPtrs.push_back(nullptr);
+
+        return archive_read_open_filenames_w(a, volPtrs.data(), bufferSize);
     }
 
     bool ArchiveEngine::IsSingleFolderArchive(const std::wstring& archivePath, std::wstring& outFolderName)
@@ -99,7 +126,7 @@ namespace EasyZip
 
         ConfigureReaderCharset(a, "");
 
-        int r = archive_read_open_filename_w(a, archivePath.c_str(), 1024 * 512);
+        int r = OpenArchiveRead(a, archivePath, 1024 * 512);
         if (r != ARCHIVE_OK)
         {
             archive_read_free(a);
@@ -186,7 +213,7 @@ namespace EasyZip
 
         ConfigureReaderCharset(a, codepage);
 
-        int r = archive_read_open_filename_w(a, archivePath.c_str(), 1024 * 512);
+        int r = OpenArchiveRead(a, archivePath, 1024 * 512);
         if (r != ARCHIVE_OK)
         {
             const char* err = archive_error_string(a);
@@ -279,7 +306,7 @@ namespace EasyZip
             archive_read_support_format_all(aScan);
             ConfigureReaderCharset(aScan, codepage);
 
-            if (archive_read_open_filename_w(aScan, archivePath.c_str(), 1024 * 512) == ARCHIVE_OK)
+            if (OpenArchiveRead(aScan, archivePath, 1024 * 512) == ARCHIVE_OK)
             {
                 struct archive_entry* entry = nullptr;
                 while (archive_read_next_header(aScan, &entry) == ARCHIVE_OK)
@@ -321,7 +348,7 @@ namespace EasyZip
         archive_read_support_format_all(a);
         ConfigureReaderCharset(a, codepage);
 
-        if (archive_read_open_filename_w(a, archivePath.c_str(), 1024 * 1024) != ARCHIVE_OK)
+        if (OpenArchiveRead(a, archivePath, 1024 * 1024) != ARCHIVE_OK)
         {
             if (outErrorMessage)
             {
@@ -753,7 +780,7 @@ namespace EasyZip
         archive_read_support_format_all(a);
         ConfigureReaderCharset(a, codepage);
 
-        if (archive_read_open_filename_w(a, archivePath.c_str(), 1024 * 512) != ARCHIVE_OK)
+        if (OpenArchiveRead(a, archivePath, 1024 * 512) != ARCHIVE_OK)
         {
             if (outErrorMessage)
             {
