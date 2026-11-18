@@ -625,70 +625,41 @@ namespace EasyZip
         }
     }
 
+    static int CALLBACK BrowseFolderCallback(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
+    {
+        if (uMsg == BFFM_INITIALIZED && lpData != 0)
+        {
+            const wchar_t* pPath = reinterpret_cast<const wchar_t*>(lpData);
+            if (pPath && *pPath)
+            {
+                SendMessageW(hwnd, BFFM_SETSELECTIONW, TRUE, (LPARAM)pPath);
+            }
+        }
+        return 0;
+    }
+
     static bool BrowseForFolder(HWND hWndParent, const std::wstring& initialDir, const std::wstring& title, std::wstring& outFolder)
     {
         HRESULT hrInit = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
         bool bSuccess = false;
-        IFileOpenDialog* pDlg = nullptr;
-        HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pDlg));
-        if (SUCCEEDED(hr))
-        {
-            DWORD dwOptions = 0;
-            if (SUCCEEDED(pDlg->GetOptions(&dwOptions)))
-            {
-                pDlg->SetOptions(dwOptions | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
-            }
-            if (!title.empty())
-            {
-                pDlg->SetTitle(title.c_str());
-            }
-            if (!initialDir.empty())
-            {
-                IShellItem* pItem = nullptr;
-                if (SUCCEEDED(SHCreateItemFromParsingName(initialDir.c_str(), NULL, IID_PPV_ARGS(&pItem))))
-                {
-                    pDlg->SetFolder(pItem);
-                    pItem->Release();
-                }
-            }
+        BROWSEINFOW bi = { 0 };
+        bi.hwndOwner = hWndParent;
+        bi.lpszTitle = title.c_str();
+        bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_USENEWUI;
+        bi.lpfn = BrowseFolderCallback;
+        bi.lParam = reinterpret_cast<LPARAM>(initialDir.c_str());
 
-            hr = pDlg->Show(hWndParent);
-            if (SUCCEEDED(hr))
-            {
-                IShellItem* pResult = nullptr;
-                if (SUCCEEDED(pDlg->GetResult(&pResult)))
-                {
-                    PWSTR pszPath = nullptr;
-                    if (SUCCEEDED(pResult->GetDisplayName(SIGDN_FILESYSPATH, &pszPath)))
-                    {
-                        outFolder = pszPath;
-                        CoTaskMemFree(pszPath);
-                        bSuccess = true;
-                    }
-                    pResult->Release();
-                }
-            }
-            pDlg->Release();
-        }
-        else
+        PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
+        if (pidl)
         {
-            // Fallback: SHBrowseForFolderW
-            BROWSEINFOW bi = { 0 };
-            bi.hwndOwner = hWndParent;
-            bi.lpszTitle = title.c_str();
-            bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_USENEWUI;
-            PIDLIST_ABSOLUTE pidl = SHBrowseForFolderW(&bi);
-            if (pidl)
+            wchar_t path[MAX_PATH * 2] = { 0 };
+            if (SHGetPathFromIDListW(pidl, path))
             {
-                wchar_t path[MAX_PATH] = { 0 };
-                if (SHGetPathFromIDListW(pidl, path))
-                {
-                    outFolder = path;
-                    bSuccess = true;
-                }
-                CoTaskMemFree(pidl);
+                outFolder = path;
+                bSuccess = true;
             }
+            CoTaskMemFree(pidl);
         }
 
         if (SUCCEEDED(hrInit))
@@ -749,8 +720,30 @@ namespace EasyZip
             }
         }
 
-        ProgressDlg progress(m_hWnd, L"압축 푸는 중 - " + PathHelper::GetFileName(m_currentArchivePath));
-        progress.SetDestinationFolder(targetDir);
+        // 알아서 풀기(Smart Extract) 분기 (전체 풀기 시)
+        std::wstring extractDestDir = targetDir;
+        std::wstring openTargetDir = targetDir;
+
+        if (targets.empty())
+        {
+            std::wstring singleFolder;
+            if (ArchiveEngine::IsSingleFolderArchive(m_currentArchivePath, singleFolder))
+            {
+                // 이미 최상위에 단일 폴더 1개만 있는 경우 -> 선택한 폴더에 바로 풀어 이중 폴더 방지
+                extractDestDir = targetDir;
+                openTargetDir = PathHelper::Combine(targetDir, singleFolder);
+            }
+            else
+            {
+                // 최상위에 여러 파일/폴더가 있는 경우 -> 압축 파일명 폴더 자동 생성하여 풀기
+                std::wstring baseName = PathHelper::GetArchiveBaseName(m_currentArchivePath);
+                extractDestDir = PathHelper::GetUniqueDirectoryPath(targetDir, baseName);
+                openTargetDir = extractDestDir;
+            }
+        }
+
+        ProgressDlg progress(m_hWnd, (targets.empty() ? L"알아서 압축 푸는 중 - " : L"압축 푸는 중 - ") + PathHelper::GetFileName(m_currentArchivePath));
+        progress.SetDestinationFolder(openTargetDir);
         progress.Show();
 
         std::wstring errMsg;
@@ -759,9 +752,9 @@ namespace EasyZip
         {
             ok = ArchiveEngine::ExtractAll(
                 m_currentArchivePath,
-                targetDir,
+                extractDestDir,
                 [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
-                [&]() { return progress.IsCanceled(); },
+                [&]( ) { return progress.IsCanceled(); },
                 &errMsg,
                 m_currentCodepage);
         }
@@ -772,7 +765,7 @@ namespace EasyZip
                 targetDir,
                 targets,
                 [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
-                [&]() { return progress.IsCanceled(); },
+                [&]( ) { return progress.IsCanceled(); },
                 &errMsg,
                 m_currentCodepage);
         }
@@ -781,7 +774,7 @@ namespace EasyZip
 
         if (ok && AppSettings::Instance().GetOpenFolderAfterExtract())
         {
-            ShellExecuteW(m_hWnd, L"open", targetDir.c_str(), NULL, NULL, SW_SHOWNORMAL);
+            ShellExecuteW(m_hWnd, L"open", openTargetDir.c_str(), NULL, NULL, SW_SHOWNORMAL);
         }
 
         if (!ok && !progress.IsCanceled())
