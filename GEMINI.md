@@ -38,8 +38,9 @@ AI 에이전트(당신)가 개발 중 **실제로 저질렀던 치명적인 실�
   - **실제 실수**: 과거 릴리스 파일명에 언더스코어(`EasyZip_Setup.exe`)가 섞여 있었다는 이유로, 표준 명칭인 `EasyZipSetup.exe` 외에 `EasyZip_Setup.exe`를 임의로 복사 생성하여 동일한 설치 파일 2개가 중복으로 배포 폴더와 릴리스에 올라가게 만듦.
   - **방지 원칙**:
     1. 설치 파일은 변형 파일명(언더스코어 등)을 일절 허용하지 않으며, 무조건 공식 표준 명칭인 **`EasyZipSetup.exe` 딱 1개**만 단일 생성 및 업로드할 것.
-    2. 포터블 압축 파일 또한 **`easyzip_v<버전>_Portable.zip` 딱 1개**만 생성하여, 배포 폴더와 릴리스에는 항상 표준 바이너리 2개(설치형 1개, 포터블 1개)만 정갈하게 유지할 것.
-    3. 코드/리소스 수정 및 배포가 발생하면 반드시 시맨틱 버저닝(SemVer) 규칙에 따라 버전 번호를 명확히 상향(`v1.0.0` ➡️ `v1.0.1`)하여 릴리스할 것.
+    2. 압축 프로그램(EasyZip)은 셸 메뉴 및 확장자 연결이 핵심이므로 비실용적인 무설치 포터블 대신, 브라우저의 `.exe` 직접 다운로드 차단 경고를 회피할 수 있는 **`EasyZipSetup.zip`**(`EasyZipSetup.exe` 압축본)을 표준 압축 배포본으로 제공할 것.
+    3. 배포 폴더와 릴리스에는 항상 표준 바이너리 2개(**`EasyZipSetup.exe`** 1개, **`EasyZipSetup.zip`** 1개)만 정갈하게 유지할 것.
+    4. 코드/리소스 수정 및 배포가 발생하면 반드시 시맨틱 버저닝(SemVer) 규칙에 따라 버전 번호를 명확히 상향(`v1.0.0` ➡️ `v1.0.1`)하여 릴리스할 것.
 - **설치 프로그램(Setup.exe) 생성 시 외부 도구 탐색 낭비 금지 및 EasyInstall 표준 파이프라인 준수**:
   - **실제 실수**: 설치 프로그램(Setup.exe) 생성 지시를 받았을 때, 프로젝트 환경에 구축된 자체 빌더를 확인하지 않고 Inno Setup(`iscc`), NSIS(`makensis`) 등 엉뚱한 외부 도구를 찾으며 헤매고 시간을 지체함. 동일 워크스페이스 그룹(`D:\coding\visualstudio\easyinstall`)에 전용 인스톨러 빌더가 이미 완성되어 있음에도 이를 즉시 활용하지 못함.
   - **방지 원칙 (표준 배포 패키징 파이프라인)**:
@@ -47,8 +48,8 @@ AI 에이전트(당신)가 개발 중 **실제로 저질렀던 치명적인 실�
        `& "D:\coding\visualstudio\easyinstall\bin\Release\easyinstall.exe" -i "<입력_바이너리_또는_폴더>" -o "<출력경로>\EasyZipSetup.exe" -n "EasyZip" -v "<버전>" -p "ai-open.kr" -m "EasyZip.exe"`
        > [!CAUTION]
        > **단일 파일 vs 폴더 패키징 맹점 방지**: DLL(`EasyZipShell.dll` 등) 동적 의존 파일이 있는 프로젝트에서 `-i`에 단일 `exe` 경로만 전달하면 부속 파일들이 패키징에서 전부 누락됨. 따라서 반드시 **바이너리 전체가 빌드된 폴더(`bin\Release`)를 `-i`로 전달**하여 모든 종속 파일이 100% 동봉되도록 할 것!
-    2. **무설치 포터블 압축 아카이브 생성**:  
-       `powershell -Command "Compress-Archive -Path '<바이너리_경로>' -DestinationPath '<출력경로>\EasyZip_Portable.zip' -Force"`
+    2. **설치 파일 압축 아카이브(EasyZipSetup.zip) 생성**:  
+       `powershell -Command "Compress-Archive -Path '<출력경로>\EasyZipSetup.exe' -DestinationPath '<출력경로>\EasyZipSetup.zip' -Force"`
     3. 설치 파일 생성 요구 시 타사 도구(`iscc`, `makensis` 등)를 일절 찾지 말고, 위 `easyinstall.exe` 절대 경로를 이용하여 즉시 1초 만에 원스톱으로 빌드할 것.
     4. **인스톨러(Setup.exe)의 기존 프로세스 감지 시 대상 디렉터리 종속 맹점 방지 원칙**:
        - `findRunningProcesses`에서 프로세스를 감지할 때 단순히 `targetDir` 내부 경로만 검사하면, 사용자가 포터블 폴더, 개발/빌드 폴더, 혹은 이전 경로에서 실행 중인 동일 프로그램을 감지하지 못하고 그냥 지나쳐 창이 닫히지 않고 설치되는 결함이 발생함.
