@@ -312,3 +312,30 @@ AI 에이전트(당신)가 개발 중 **실제로 저질렀던 치명적인 실�
      - 최상위에 단일 폴더 1개만 있는 아카이브: 대상 폴더에 바로 풀어 이중 폴더(`폴더\폴더`) 생성 방어.
      - 최상위에 복수 파일/폴더가 흩어져 있는 아카이브: 대상 폴더 아래에 압축 파일명 폴더(`targetDir\{파일명}\`)를 자동 생성하여 사용자 작업 공간을 깔끔하게 보호.
      - 완료 후 열리는 대상 폴더 경로도 실제 풀린 최종 디렉터리(`openTargetDir`)로 정확히 동기화할 것.
+
+
+### 🛡️ 기업 보안 PC(DLP/EDR/GPO)에서의 COM 셸 확장 원천 차단 한계 및 100% 순수 정적 셸 메뉴(Static Verbs) 단일화 원칙
+- **실제 실수**:
+  - `Shell Extensions\Approved` 등록을 시도했음에도 불구하고, 실제 회사 PC(Privacy-i, DRM, AppLocker, 기업용 GPO 환경)에서는 여전히 `알아서 풀기`, `압축하기` 등 메뉴가 전혀 나타나지 않고 오직 정적 동사였던 `새 폴더 만들기`와 `열기`만 노출되는 현상이 지속됨.
+  - 원인:
+    1. 일반 권한(asInvoker) 설치 환경에서는 `HKLM\...\Approved`에 쓸 수 있는 권한이 없어 레지스트리 기록 자체가 무시됨.
+    2. Privacy-i 등 사내 보안 프로그램과 기업 GPO 정책(`DisableUserShellExtensions = 1`)은 서명되지 않은 임의의 서드파티 DLL(`EasyZipShell.dll`)이 시스템 핵심 프로세스인 `explorer.exe`에 로드(In-process Injection)되는 것 자체를 커널 레벨에서 원천 차단함.
+    3. 반면 `새 폴더 만들기`와 `열기`는 DLL을 로드하지 않는 **순수 레지스트리 정적 동사(Static Shell Verbs)**이므로 어떠한 보안 솔루션도 차단하지 못하고 100% 정상 작동함.
+- **방지 원칙**:
+  1. **골칫거리 COM DLL(`EasyZipShell.dll`) 전면 폐지**: 탐색기 파일 잠김(`ERROR_SHARING_VIOLATION`), 사내 보안 차단, 32/64비트 문제, 복잡한 COM 등록을 유발하는 `EasyZipShell.dll`을 완전히 제거하고, 배포 패키지에서도 제외할 것.
+  2. **100% 순수 레지스트리 정적 셸 동사(Static Verbs) 단일화**:
+     - `EasyZip.Archive\shell\ExtractSmart` (`알아서 풀기(&A)`) -> `"<exePath>" -xs "%1"`
+     - `EasyZip.Archive\shell\ExtractHere` (`여기에 압축 풀기(&X)`) -> `"<exePath>" -x "%1"`
+     - `EasyZip.Archive\shell\ExtractFolder` (`폴더에 압축 풀기(&E)`) -> `"<exePath>" -xd "%1"`
+     - `*\shell\EasyZip.Compress` & `Directory\shell\EasyZip.Compress` (`EasyZip으로 압축하기(&C)...`) -> `"<exePath>" -c "%1"` (또는 `"%V"`)
+  3. **설치 즉시 활성화, 삭제 즉시 완전 정리 (Fail-safe)**:
+     - 설치 직후 `--register`로 정적 동사 즉시 등록 및 `SHCNE_ASSOCCHANGED` 전송 (재부팅 불필요).
+     - 언인스톨러(`Uninstaller.cpp`) 및 `--unregister` 시 위 모든 정적 키 및 레거시 COM 키를 2중으로 완전히 파기(`RegDeleteTreeW`)하여 단 1개의 찌꺼기도 남기지 말 것.
+
+### 🚫 탐색기 우클릭 메뉴 '열기' 중복 노출 방지 원칙 (ProgID `shell\open` vs COM 셸 확장)
+- **실제 실수**:
+  - 확장자 연결 ProgID의 `shell\open` 기본 텍스트를 `EasyZip으로 열기(&O)`로 등록한 상태에서, COM 셸 확장(`EasyZipShell.dll`)에서도 단일 파일 우클릭 시 `EasyZip으로 열기(&O)`를 무조건 메뉴에 삽입함.
+  - 이로 인해 탐색기 우클릭 메뉴에 동일한 이름의 "EasyZip으로 열기"가 2개씩 중복 노출되어 UI가 지저분해지는 시각적 결함 발생.
+- **방지 원칙**:
+  1. **표준 기본 동사(`열기(&O)`) 일원화**: ProgID의 `shell\open` 텍스트는 윈도우 표준에 맞춰 순수 **`열기(&O)`**로 등록하여 더블클릭 기본 실행 항목으로 유지할 것.
+  2. **서브메뉴 모드 조건부 노출**: `EasyZipShell.dll`에서는 **'하나의 메뉴로 묶어보기'(`s.showSubmenu`) 서브메뉴 모드일 때만** `EasyZip ▶` 폴더 안쪽에 `EasyZip으로 열기(&O)`를 포함하고, 기본 펼침 모드에서는 상단 기본 `열기`와의 중복 방지를 위해 DLL 메뉴 항목에서 완전히 배제할 것.

@@ -17,6 +17,7 @@ namespace EasyZip
         return s_exts;
     }
 
+    // Helper: Register a static shell verb under a registry key
     static void RegisterShellVerb(const std::wstring& rootSubKey, const std::wstring& verb, const std::wstring& menuText, const std::wstring& command, const std::wstring& iconPath)
     {
         std::wstring verbPath = rootSubKey + L"\\shell\\" + verb;
@@ -39,22 +40,35 @@ namespace EasyZip
         }
     }
 
-    static void RegisterShellExtensionDll(bool reg)
+    // Clean legacy COM DLL shell extension keys (Purge EasyZipShell.dll registration)
+    static void CleanLegacyShellExtension()
     {
-        std::wstring exeDir = PathHelper::GetExeDirectory();
-        std::wstring dllPath = PathHelper::Combine(exeDir, L"EasyZipShell.dll");
-        if (!PathHelper::FileExists(dllPath)) return;
+        static const wchar_t* legacyHandlers[] = {
+            L"Software\\Classes\\*\\shellex\\ContextMenuHandlers\\EasyZip",
+            L"Software\\Classes\\Directory\\shellex\\ContextMenuHandlers\\EasyZip",
+            L"Software\\Classes\\Directory\\Background\\shellex\\ContextMenuHandlers\\EasyZip",
+            L"Software\\Classes\\DesktopBackground\\shellex\\ContextMenuHandlers\\EasyZip",
+            L"Software\\Classes\\Drive\\shellex\\ContextMenuHandlers\\EasyZip",
+            L"Software\\Classes\\Folder\\shellex\\ContextMenuHandlers\\EasyZip",
+            L"Software\\Classes\\EasyZip.Archive\\shellex\\ContextMenuHandlers\\EasyZip",
+            L"Software\\Classes\\CLSID\\{D8F2A385-4C3D-4B9F-8349-3A65C82A4D10}"
+        };
 
-        HMODULE hDll = LoadLibraryW(dllPath.c_str());
-        if (hDll)
+        const HKEY roots[] = { HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE };
+        for (HKEY root : roots)
         {
-            typedef HRESULT(STDAPICALLTYPE* LPFNREG)();
-            LPFNREG pfn = (LPFNREG)GetProcAddress(hDll, reg ? "DllRegisterServer" : "DllUnregisterServer");
-            if (pfn)
+            for (const auto* k : legacyHandlers)
             {
-                pfn();
+                RegDeleteTreeW(root, k);
             }
-            FreeLibrary(hDll);
+
+            // Remove from Shell Extensions\Approved
+            HKEY hAppr = NULL;
+            if (RegOpenKeyExW(root, L"Software\\Microsoft\\Windows\\CurrentVersion\\Shell Extensions\\Approved", 0, KEY_SET_VALUE, &hAppr) == ERROR_SUCCESS)
+            {
+                RegDeleteValueW(hAppr, L"{D8F2A385-4C3D-4B9F-8349-3A65C82A4D10}");
+                RegCloseKey(hAppr);
+            }
         }
     }
 
@@ -68,6 +82,33 @@ namespace EasyZip
         RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\Folder\\shell\\EasyZip.FastZip");
     }
 
+    static void RegisterCompressVerbs(bool enable)
+    {
+        CleanStaticShellVerbs();
+        if (!enable) return;
+
+        std::wstring exePath = PathHelper::GetExePath();
+        std::wstring iconVal = L"\"" + exePath + L"\",0";
+
+        // 1. Files: HKCU\Software\Classes\*\shell\EasyZip.Compress
+        RegisterShellVerb(
+            L"Software\\Classes\\*",
+            L"EasyZip.Compress",
+            L"EasyZip으로 압축하기(&C)...",
+            L"\"" + exePath + L"\" -c \"%1\"",
+            iconVal
+        );
+
+        // 2. Directories: HKCU\Software\Classes\Directory\shell\EasyZip.Compress
+        RegisterShellVerb(
+            L"Software\\Classes\\Directory",
+            L"EasyZip.Compress",
+            L"EasyZip으로 압축하기(&C)...",
+            L"\"" + exePath + L"\" -c \"%V\"",
+            iconVal
+        );
+    }
+
     static void RegisterSingleProgId(const std::wstring& progId, const std::wstring& desc, const std::wstring& exePath)
     {
         HKEY hProgKey;
@@ -78,15 +119,15 @@ namespace EasyZip
             RegSetValueExW(hProgKey, L"FriendlyTypeName", 0, REG_SZ, reinterpret_cast<const BYTE*>(desc.c_str()), static_cast<DWORD>((desc.length() + 1) * sizeof(wchar_t)));
 
             // DefaultIcon
+            std::wstring iconVal = L"\"" + exePath + L"\",0";
             HKEY hIconKey;
             if (RegCreateKeyExW(hProgKey, L"DefaultIcon", 0, NULL, 0, KEY_WRITE, NULL, &hIconKey, NULL) == ERROR_SUCCESS)
             {
-                std::wstring iconVal = L"\"" + exePath + L"\",0";
                 RegSetValueExW(hIconKey, NULL, 0, REG_SZ, reinterpret_cast<const BYTE*>(iconVal.c_str()), static_cast<DWORD>((iconVal.length() + 1) * sizeof(wchar_t)));
                 RegCloseKey(hIconKey);
             }
 
-            // shell\open\command
+            // 1. shell\open (기본 더블클릭 실행 동사)
             HKEY hCmdKey;
             if (RegCreateKeyExW(hProgKey, L"shell\\open\\command", 0, NULL, 0, KEY_WRITE, NULL, &hCmdKey, NULL) == ERROR_SUCCESS)
             {
@@ -95,30 +136,47 @@ namespace EasyZip
                 RegCloseKey(hCmdKey);
             }
 
-            // shell\open
             HKEY hOpenKey;
             if (RegOpenKeyExW(hProgKey, L"shell\\open", 0, KEY_WRITE, &hOpenKey) == ERROR_SUCCESS)
             {
-                std::wstring appName = L"EasyZip으로 열기(&O)";
+                std::wstring appName = L"열기(&O)";
                 RegSetValueExW(hOpenKey, NULL, 0, REG_SZ, reinterpret_cast<const BYTE*>(appName.c_str()), static_cast<DWORD>((appName.length() + 1) * sizeof(wchar_t)));
-                std::wstring iconVal = L"\"" + exePath + L"\",0";
                 RegSetValueExW(hOpenKey, L"Icon", 0, REG_SZ, reinterpret_cast<const BYTE*>(iconVal.c_str()), static_cast<DWORD>((iconVal.length() + 1) * sizeof(wchar_t)));
                 RegCloseKey(hOpenKey);
             }
 
-            // Delete old static extract verbs if they exist
-            RegDeleteTreeW(hProgKey, L"shell\\ExtractHere");
-            RegDeleteTreeW(hProgKey, L"shell\\ExtractSmart");
-            RegDeleteTreeW(hProgKey, L"shell\\ExtractFolder");
-
-            // Register ContextMenuHandlers for dynamic shell extension
-            HKEY hCtxKey;
-            if (RegCreateKeyExW(hProgKey, L"shellex\\ContextMenuHandlers\\EasyZip", 0, NULL, 0, KEY_WRITE, NULL, &hCtxKey, NULL) == ERROR_SUCCESS)
+            // 2. shell\ExtractSmart: 알아서 풀기(&A) (100% 무조건 동작하는 순수 정적 동사!)
+            if (AppSettings::Instance().GetMenuExtractSmart())
             {
-                const wchar_t clsid[] = L"{D8F2A385-4C3D-4B9F-8349-3A65C82A4D10}";
-                RegSetValueExW(hCtxKey, NULL, 0, REG_SZ, reinterpret_cast<const BYTE*>(clsid), sizeof(clsid));
-                RegCloseKey(hCtxKey);
+                RegisterShellVerb(progKeyPath, L"ExtractSmart", L"알아서 풀기(&A)", L"\"" + exePath + L"\" -xs \"%1\"", iconVal);
             }
+            else
+            {
+                RegDeleteTreeW(hProgKey, L"shell\\ExtractSmart");
+            }
+
+            // 3. shell\ExtractHere: 여기에 압축 풀기(&X)
+            if (AppSettings::Instance().GetMenuExtractHere())
+            {
+                RegisterShellVerb(progKeyPath, L"ExtractHere", L"여기에 압축 풀기(&X)", L"\"" + exePath + L"\" -x \"%1\"", iconVal);
+            }
+            else
+            {
+                RegDeleteTreeW(hProgKey, L"shell\\ExtractHere");
+            }
+
+            // 4. shell\ExtractFolder: 폴더에 압축 풀기(&E)
+            if (AppSettings::Instance().GetMenuExtractFolder())
+            {
+                RegisterShellVerb(progKeyPath, L"ExtractFolder", L"폴더에 압축 풀기(&E)", L"\"" + exePath + L"\" -xd \"%1\"", iconVal);
+            }
+            else
+            {
+                RegDeleteTreeW(hProgKey, L"shell\\ExtractFolder");
+            }
+
+            // 구형 COM 셸 확장 핸들러 제거 (중복 및 충돌 방지)
+            RegDeleteTreeW(hProgKey, L"shellex\\ContextMenuHandlers\\EasyZip");
 
             RegCloseKey(hProgKey);
         }
@@ -334,20 +392,60 @@ namespace EasyZip
     void FileAssociation::RegisterShellMenu()
     {
         AppSettings::Instance().Save();
-        CleanStaticShellVerbs();
+        CleanLegacyShellExtension();
         RegisterNewFolderVerb(AppSettings::Instance().GetMenuNewFolder());
-        RegisterShellExtensionDll(true);
+        RegisterCompressVerbs(AppSettings::Instance().GetMenuCompress());
         BlockWindowsDefaultZipMenu(true);
+
+        // Update all ProgIDs with current settings (ExtractSmart, ExtractHere, ExtractFolder)
+        std::wstring exePath = PathHelper::GetExePath();
+        RegisterSingleProgId(L"EasyZip.Archive", L"EasyZip Archive", exePath);
+        for (const auto& ext : GetSupportedExtensions())
+        {
+            std::wstring cleanExt = (ext[0] == L'.') ? ext.substr(1) : ext;
+            RegisterSingleProgId(L"EasyZip." + cleanExt, L"EasyZip " + cleanExt + L" Archive", exePath);
+        }
+
         RefreshShellIcons();
     }
 
     void FileAssociation::UnregisterShellMenu()
     {
-        CleanStaticShellVerbs();
+        CleanLegacyShellExtension();
         RegisterNewFolderVerb(false);
-        RegisterShellExtensionDll(false);
+        RegisterCompressVerbs(false);
         BlockWindowsDefaultZipMenu(false);
+
+        // Delete extract verbs from EasyZip.Archive
+        HKEY hProgKey;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Classes\\EasyZip.Archive", 0, KEY_WRITE, &hProgKey) == ERROR_SUCCESS)
+        {
+            RegDeleteTreeW(hProgKey, L"shell\\ExtractSmart");
+            RegDeleteTreeW(hProgKey, L"shell\\ExtractHere");
+            RegDeleteTreeW(hProgKey, L"shell\\ExtractFolder");
+            RegCloseKey(hProgKey);
+        }
+
+        for (const auto& ext : GetSupportedExtensions())
+        {
+            std::wstring cleanExt = (ext[0] == L'.') ? ext.substr(1) : ext;
+            std::wstring subKey = L"Software\\Classes\\EasyZip." + cleanExt;
+            if (RegOpenKeyExW(HKEY_CURRENT_USER, subKey.c_str(), 0, KEY_WRITE, &hProgKey) == ERROR_SUCCESS)
+            {
+                RegDeleteTreeW(hProgKey, L"shell\\ExtractSmart");
+                RegDeleteTreeW(hProgKey, L"shell\\ExtractHere");
+                RegDeleteTreeW(hProgKey, L"shell\\ExtractFolder");
+                RegCloseKey(hProgKey);
+            }
+        }
+
         RefreshShellIcons();
+    }
+
+    void FileAssociation::RegisterShellExtensionApproved(bool reg)
+    {
+        // Legacy stub: Clean legacy COM extension instead
+        CleanLegacyShellExtension();
     }
 
     void FileAssociation::BlockWindowsDefaultZipMenu(bool block)

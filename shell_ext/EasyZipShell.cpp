@@ -368,7 +368,11 @@ public:
                         std::wstring baseName = GetFileNameWithoutExtension(m_files[0]);
                         items.push_back({ L"\"" + baseName + L"\\\"에 압축 풀기(&E)", ACTION_EXTRACT_FOLDER });
                     }
-                    items.push_back({ L"EasyZip으로 열기(&O)", ACTION_OPEN });
+                    // 서브메뉴 모드일 때만 메뉴 내부에 '열기' 포함 (펼침 모드에서는 상단 기본 '열기'와 중복 방지)
+                    if (s.showSubmenu)
+                    {
+                        items.push_back({ L"EasyZip으로 열기(&O)", ACTION_OPEN });
+                    }
                 }
                 else
                 {
@@ -734,19 +738,26 @@ STDAPI DllRegisterServer(void)
     wchar_t dllPath[MAX_PATH] = { 0 };
     GetModuleFileNameW(g_hInst, dllPath, MAX_PATH);
 
-    std::wstring clsidKey = L"Software\\Classes\\CLSID\\" + std::wstring(CLSID_STRING);
-    SetRegString(HKEY_CURRENT_USER, clsidKey.c_str(), NULL, L"EasyZip Shell Extension");
-    SetRegString(HKEY_CURRENT_USER, (clsidKey + L"\\InprocServer32").c_str(), NULL, dllPath);
-    SetRegString(HKEY_CURRENT_USER, (clsidKey + L"\\InprocServer32").c_str(), L"ThreadingModel", L"Apartment");
+    const HKEY roots[] = { HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE };
+    for (HKEY root : roots)
+    {
+        std::wstring clsidKey = L"Software\\Classes\\CLSID\\" + std::wstring(CLSID_STRING);
+        SetRegString(root, clsidKey.c_str(), NULL, L"EasyZip Shell Extension");
+        SetRegString(root, (clsidKey + L"\\InprocServer32").c_str(), NULL, dllPath);
+        SetRegString(root, (clsidKey + L"\\InprocServer32").c_str(), L"ThreadingModel", L"Apartment");
 
-    // ContextMenuHandlers
-    SetRegString(HKEY_CURRENT_USER, L"Software\\Classes\\*\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
-    SetRegString(HKEY_CURRENT_USER, L"Software\\Classes\\Directory\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
-    SetRegString(HKEY_CURRENT_USER, L"Software\\Classes\\Directory\\Background\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
-    SetRegString(HKEY_CURRENT_USER, L"Software\\Classes\\DesktopBackground\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
-    SetRegString(HKEY_CURRENT_USER, L"Software\\Classes\\Drive\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
-    SetRegString(HKEY_CURRENT_USER, L"Software\\Classes\\Folder\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
-    SetRegString(HKEY_CURRENT_USER, L"Software\\Classes\\EasyZip.Archive\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
+        // ContextMenuHandlers
+        SetRegString(root, L"Software\\Classes\\*\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
+        SetRegString(root, L"Software\\Classes\\Directory\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
+        SetRegString(root, L"Software\\Classes\\Directory\\Background\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
+        SetRegString(root, L"Software\\Classes\\DesktopBackground\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
+        SetRegString(root, L"Software\\Classes\\Drive\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
+        SetRegString(root, L"Software\\Classes\\Folder\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
+        SetRegString(root, L"Software\\Classes\\EasyZip.Archive\\shellex\\ContextMenuHandlers\\EasyZip", NULL, CLSID_STRING);
+
+        // Shell Extensions\Approved (필수: 사내 GPO '승인된 셸 확장' 차단 해제)
+        SetRegString(root, L"Software\\Microsoft\\Windows\\CurrentVersion\\Shell Extensions\\Approved", CLSID_STRING, L"EasyZip Shell Extension");
+    }
 
     // Clean old static shell verbs
     RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\EasyZip.Archive\\shell\\ExtractHere");
@@ -763,16 +774,28 @@ STDAPI DllRegisterServer(void)
 
 STDAPI DllUnregisterServer(void)
 {
-    std::wstring clsidKey = L"Software\\Classes\\CLSID\\" + std::wstring(CLSID_STRING);
-    RegDeleteTreeW(HKEY_CURRENT_USER, clsidKey.c_str());
+    const HKEY roots[] = { HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE };
+    for (HKEY root : roots)
+    {
+        std::wstring clsidKey = L"Software\\Classes\\CLSID\\" + std::wstring(CLSID_STRING);
+        RegDeleteTreeW(root, clsidKey.c_str());
 
-    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\*\\shellex\\ContextMenuHandlers\\EasyZip");
-    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\Directory\\shellex\\ContextMenuHandlers\\EasyZip");
-    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\Directory\\Background\\shellex\\ContextMenuHandlers\\EasyZip");
-    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\DesktopBackground\\shellex\\ContextMenuHandlers\\EasyZip");
-    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\Drive\\shellex\\ContextMenuHandlers\\EasyZip");
-    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\Folder\\shellex\\ContextMenuHandlers\\EasyZip");
-    RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\Classes\\EasyZip.Archive\\shellex\\ContextMenuHandlers\\EasyZip");
+        RegDeleteTreeW(root, L"Software\\Classes\\*\\shellex\\ContextMenuHandlers\\EasyZip");
+        RegDeleteTreeW(root, L"Software\\Classes\\Directory\\shellex\\ContextMenuHandlers\\EasyZip");
+        RegDeleteTreeW(root, L"Software\\Classes\\Directory\\Background\\shellex\\ContextMenuHandlers\\EasyZip");
+        RegDeleteTreeW(root, L"Software\\Classes\\DesktopBackground\\shellex\\ContextMenuHandlers\\EasyZip");
+        RegDeleteTreeW(root, L"Software\\Classes\\Drive\\shellex\\ContextMenuHandlers\\EasyZip");
+        RegDeleteTreeW(root, L"Software\\Classes\\Folder\\shellex\\ContextMenuHandlers\\EasyZip");
+        RegDeleteTreeW(root, L"Software\\Classes\\EasyZip.Archive\\shellex\\ContextMenuHandlers\\EasyZip");
+
+        // Shell Extensions\Approved 제거
+        HKEY hApproved = NULL;
+        if (RegOpenKeyExW(root, L"Software\\Microsoft\\Windows\\CurrentVersion\\Shell Extensions\\Approved", 0, KEY_SET_VALUE, &hApproved) == ERROR_SUCCESS)
+        {
+            RegDeleteValueW(hApproved, CLSID_STRING);
+            RegCloseKey(hApproved);
+        }
+    }
 
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
     return S_OK;

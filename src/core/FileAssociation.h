@@ -19,6 +19,7 @@ namespace EasyZip
         static void UnregisterShellMenu();
         static void RegisterNewFolderVerb(bool enable);
         static void BlockWindowsDefaultZipMenu(bool block);
+        static void RegisterShellExtensionApproved(bool reg);
         static void RefreshShellIcons();
 
         // Windows 11 & Modern Windows Default Apps integration

@@ -160,17 +160,14 @@ BEGIN
     PUSHBUTTON      "Windows 11 기본 앱 설정 열기...", IDC_BTN_WIN11_DEFAULT_APPS, 146, 142, 170, 16
 
     // Tab 1: Shell Integration
-    GROUPBOX        "윈도우 탐색기 우클릭 메뉴 연동", IDC_GRP_SHELL, 20, 34, 320, 172
-    CONTROL         "윈도우 탐색기 컨텍스트 메뉴 사용 (EasyZipShell)", IDC_CHK_ENABLE_SHELL_MENU, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 30, 48, 260, 11
-    CONTROL         "하위 메뉴(Cascading Menu)로 묶어서 표시", IDC_CHK_SHOW_SUBMENU, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 30, 61, 260, 11
-    LTEXT           "표시할 메뉴 항목 선택:", IDC_LBL_SHELL_ITEMS, 30, 75, 260, 10
-    CONTROL         "새 폴더 만들기(&N) (최상단 노출)", IDC_CHK_MENU_NEW_FOLDER, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 88, 260, 11
-    CONTROL         "여기에 압축 풀기(&X)", IDC_CHK_MENU_EXTRACT_HERE, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 101, 260, 11
-    CONTROL         "알아서 풀기(&A) (폴더 유무 자동 판별)", IDC_CHK_MENU_EXTRACT_SMART, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 114, 260, 11
-    CONTROL         """{파일명}""에 압축 풀기 (단일 파일 선택 시)", IDC_CHK_MENU_EXTRACT_FOLDER, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 127, 260, 11
-    CONTROL         "각각의 폴더에 압축 풀기 (다중 파일 선택 시)", IDC_CHK_MENU_EXTRACT_EACH, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 140, 260, 11
-    CONTROL         "빠른 ZIP 압축(&Z)", IDC_CHK_MENU_FAST_ZIP, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 153, 260, 11
-    CONTROL         "EasyZip으로 압축하기(&C)...", IDC_CHK_MENU_COMPRESS, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 166, 260, 11
+    GROUPBOX        "윈도우 탐색기 우클릭 메뉴 연동", IDC_GRP_SHELL, 20, 34, 320, 160
+    CONTROL         "윈도우 탐색기 우클릭 메뉴 사용", IDC_CHK_ENABLE_SHELL_MENU, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 30, 48, 260, 11
+    LTEXT           "표시할 메뉴 항목 선택 (사내 보안/기업 환경 100% 호환):", IDC_LBL_SHELL_ITEMS, 30, 64, 260, 10
+    CONTROL         "새 폴더 만들기(&N) (최상단 노출)", IDC_CHK_MENU_NEW_FOLDER, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 79, 260, 11
+    CONTROL         "알아서 풀기(&A) (단일/다중 폴더 자동 판별)", IDC_CHK_MENU_EXTRACT_SMART, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 93, 260, 11
+    CONTROL         "여기에 압축 풀기(&X)", IDC_CHK_MENU_EXTRACT_HERE, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 107, 260, 11
+    CONTROL         "폴더에 압축 풀기(&E)", IDC_CHK_MENU_EXTRACT_FOLDER, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 121, 260, 11
+    CONTROL         "EasyZip으로 압축하기(&C)...", IDC_CHK_MENU_COMPRESS, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 38, 135, 260, 11
 
     // Tab 2: General Options
     GROUPBOX        "기본 동작 설정", IDC_GRP_GENERAL, 20, 34, 320, 140
@@ -187,7 +184,7 @@ CAPTION "EasyZip 정보"
 FONT 9, "맑은 고딕", 400, 0, 0x1
 BEGIN
     ICON            IDI_APP_ICON, IDC_STATIC, 16, 16, 32, 32
-    LTEXT           "EasyZip v1.1.1 (x64 Native)", IDC_STATIC, 60, 16, 160, 12, SS_NOPREFIX
+    LTEXT           "EasyZip v1.1.8 (x64 Native)", IDC_STATIC, 60, 16, 160, 12, SS_NOPREFIX
     LTEXT           "초고속 네이티브 C++ 아카이버", IDC_STATIC, 60, 32, 160, 12
     LTEXT           "Copyright (C) 2026 ai-open.kr. All rights reserved.", IDC_STATIC, 60, 50, 168, 18
     LTEXT           "ZIP, 7Z, RAR, ALZ, EGG, TAR, GZ, BZ2, XZ 지원", IDC_STATIC, 60, 72, 168, 12
@@ -196,8 +193,8 @@ END
 
 // Version Info
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     1,1,5,0
-PRODUCTVERSION  1,1,5,0
+FILEVERSION     1,1,8,0
+PRODUCTVERSION  1,1,8,0
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
 FILEFLAGS       VS_FF_DEBUG
@@ -214,12 +211,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "ai-open.kr"
             VALUE "FileDescription",  "EasyZip High Performance Archiver"
-            VALUE "FileVersion",      "1.1.5.0"
+            VALUE "FileVersion",      "1.1.8.0"
             VALUE "InternalName",     "EasyZip"
             VALUE "LegalCopyright",   "Copyright (C) 2026 ai-open.kr. All rights reserved."
             VALUE "OriginalFilename", "EasyZip.exe"
             VALUE "ProductName",      "EasyZip"
-            VALUE "ProductVersion",   "1.1.5.0"
+            VALUE "ProductVersion",   "1.1.8.0"
         END
     END
     BLOCK "VarFileInfo"

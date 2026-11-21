@@ -20,14 +20,11 @@ namespace EasyZip
     static const int s_tab1Controls[] = {
         IDC_GRP_SHELL,
         IDC_CHK_ENABLE_SHELL_MENU,
-        IDC_CHK_SHOW_SUBMENU,
         IDC_LBL_SHELL_ITEMS,
         IDC_CHK_MENU_NEW_FOLDER,
-        IDC_CHK_MENU_EXTRACT_HERE,
         IDC_CHK_MENU_EXTRACT_SMART,
+        IDC_CHK_MENU_EXTRACT_HERE,
         IDC_CHK_MENU_EXTRACT_FOLDER,
-        IDC_CHK_MENU_EXTRACT_EACH,
-        IDC_CHK_MENU_FAST_ZIP,
         IDC_CHK_MENU_COMPRESS
     };
 
@@ -101,13 +98,10 @@ namespace EasyZip
 
             // Tab 1: Shell Integration
             CheckDlgButton(hDlg, IDC_CHK_ENABLE_SHELL_MENU, AppSettings::Instance().GetEnableShellMenu() ? BST_CHECKED : BST_UNCHECKED);
-            CheckDlgButton(hDlg, IDC_CHK_SHOW_SUBMENU, AppSettings::Instance().GetShowSubmenu() ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(hDlg, IDC_CHK_MENU_NEW_FOLDER, AppSettings::Instance().GetMenuNewFolder() ? BST_CHECKED : BST_UNCHECKED);
-            CheckDlgButton(hDlg, IDC_CHK_MENU_EXTRACT_HERE, AppSettings::Instance().GetMenuExtractHere() ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(hDlg, IDC_CHK_MENU_EXTRACT_SMART, AppSettings::Instance().GetMenuExtractSmart() ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(hDlg, IDC_CHK_MENU_EXTRACT_HERE, AppSettings::Instance().GetMenuExtractHere() ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(hDlg, IDC_CHK_MENU_EXTRACT_FOLDER, AppSettings::Instance().GetMenuExtractFolder() ? BST_CHECKED : BST_UNCHECKED);
-            CheckDlgButton(hDlg, IDC_CHK_MENU_EXTRACT_EACH, AppSettings::Instance().GetMenuExtractEach() ? BST_CHECKED : BST_UNCHECKED);
-            CheckDlgButton(hDlg, IDC_CHK_MENU_FAST_ZIP, AppSettings::Instance().GetMenuFastZip() ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(hDlg, IDC_CHK_MENU_COMPRESS, AppSettings::Instance().GetMenuCompress() ? BST_CHECKED : BST_UNCHECKED);
 
             // Tab 2: General Options
@@ -214,6 +208,12 @@ namespace EasyZip
                 // Save shell & general settings
                 bool enableShell = (IsDlgButtonChecked(hDlg, IDC_CHK_ENABLE_SHELL_MENU) == BST_CHECKED);
                 AppSettings::Instance().SetEnableShellMenu(enableShell);
+                AppSettings::Instance().SetMenuNewFolder(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_NEW_FOLDER) == BST_CHECKED);
+                AppSettings::Instance().SetMenuExtractSmart(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_EXTRACT_SMART) == BST_CHECKED);
+                AppSettings::Instance().SetMenuExtractHere(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_EXTRACT_HERE) == BST_CHECKED);
+                AppSettings::Instance().SetMenuExtractFolder(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_EXTRACT_FOLDER) == BST_CHECKED);
+                AppSettings::Instance().SetMenuCompress(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_COMPRESS) == BST_CHECKED);
+
                 if (enableShell)
                 {
                     FileAssociation::RegisterShellMenu();
@@ -222,15 +222,6 @@ namespace EasyZip
                 {
                     FileAssociation::UnregisterShellMenu();
                 }
-
-                AppSettings::Instance().SetShowSubmenu(IsDlgButtonChecked(hDlg, IDC_CHK_SHOW_SUBMENU) == BST_CHECKED);
-                AppSettings::Instance().SetMenuNewFolder(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_NEW_FOLDER) == BST_CHECKED);
-                AppSettings::Instance().SetMenuExtractHere(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_EXTRACT_HERE) == BST_CHECKED);
-                AppSettings::Instance().SetMenuExtractSmart(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_EXTRACT_SMART) == BST_CHECKED);
-                AppSettings::Instance().SetMenuExtractFolder(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_EXTRACT_FOLDER) == BST_CHECKED);
-                AppSettings::Instance().SetMenuExtractEach(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_EXTRACT_EACH) == BST_CHECKED);
-                AppSettings::Instance().SetMenuFastZip(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_FAST_ZIP) == BST_CHECKED);
-                AppSettings::Instance().SetMenuCompress(IsDlgButtonChecked(hDlg, IDC_CHK_MENU_COMPRESS) == BST_CHECKED);
 
                 AppSettings::Instance().SetOpenFolderAfterExtract(IsDlgButtonChecked(hDlg, IDC_CHK_DEF_OPEN_FOLDER) == BST_CHECKED);
 
