@@ -6,6 +6,8 @@
 #include "SettingsDlg.h"
 #include "AppSettings.h"
 #include "FileAssociation.h"
+#include "OleDropSource.h"
+#include "PasswordDlg.h"
 #include "res/resource.h"
 #include <commctrl.h>
 #include <commdlg.h>
@@ -227,6 +229,11 @@ namespace EasyZip
         lvc.pszText = const_cast<LPWSTR>(L"경로");
         ListView_InsertColumn(m_hListView, 5, &lvc);
 
+        lvc.fmt = LVCFMT_CENTER;
+        lvc.cx = 60;
+        lvc.pszText = const_cast<LPWSTR>(L"암호");
+        ListView_InsertColumn(m_hListView, 6, &lvc);
+
         // 6. Status Bar
         m_hStatusBar = CreateWindowExW(
             0, STATUSCLASSNAMEW, NULL,
@@ -290,7 +297,7 @@ namespace EasyZip
 
         m_currentArchivePath = archivePath;
         std::wstring err;
-        if (!ArchiveEngine::ReadEntries(archivePath, m_entries, err, m_currentCodepage))
+        if (!ArchiveEngine::ReadEntries(archivePath, m_entries, err, m_currentCodepage, m_hWnd))
         {
             MessageBoxW(m_hWnd, (L"압축 파일을 열 수 없습니다:\n" + err).c_str(), L"오류", MB_ICONERROR);
             return;
@@ -299,6 +306,22 @@ namespace EasyZip
         // Set title
         std::wstring title = PathHelper::GetFileName(archivePath) + L" - EasyZip";
         SetWindowTextW(m_hWnd, title.c_str());
+
+        // Check if any entries are encrypted and prompt user early
+        m_archivePasswordUtf8.clear();
+        bool hasEncrypted = false;
+        for (const auto& e : m_entries)
+        {
+            if (e.isEncrypted)
+            {
+                hasEncrypted = true;
+                break;
+            }
+        }
+        if (hasEncrypted)
+        {
+            PasswordDlg::Prompt(m_hWnd, m_currentArchivePath, m_archivePasswordUtf8);
+        }
 
         // Rebuild folder tree & populate list
         m_currentFolder.clear();
@@ -549,6 +572,9 @@ namespace EasyZip
             // Full relative path
             ListView_SetItemText(m_hListView, index, 5, const_cast<LPWSTR>(pFile->fullPath.c_str()));
 
+            // Encryption status
+            ListView_SetItemText(m_hListView, index, 6, const_cast<LPWSTR>(pFile->isEncrypted ? L"🔒" : L""));
+
             index++;
         }
 
@@ -756,7 +782,9 @@ namespace EasyZip
                 [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
                 [&]( ) { return progress.IsCanceled(); },
                 &errMsg,
-                m_currentCodepage);
+                m_currentCodepage,
+                progress.GetHwnd(),
+                m_archivePasswordUtf8);
         }
         else
         {
@@ -767,7 +795,9 @@ namespace EasyZip
                 [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
                 [&]( ) { return progress.IsCanceled(); },
                 &errMsg,
-                m_currentCodepage);
+                m_currentCodepage,
+                progress.GetHwnd(),
+                m_archivePasswordUtf8);
         }
 
         progress.Close();
@@ -802,6 +832,7 @@ namespace EasyZip
             opts.destArchivePath,
             opts.format,
             opts.level,
+            opts.password,
             [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
             [&]() { return progress.IsCanceled(); },
             &errMsg);
@@ -831,7 +862,8 @@ namespace EasyZip
             [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
             [&]() { return progress.IsCanceled(); },
             &errMsg,
-            m_currentCodepage);
+            m_currentCodepage,
+            m_hWnd);
 
         progress.Close();
 
@@ -842,6 +874,158 @@ namespace EasyZip
         else if (!progress.IsCanceled())
         {
             MessageBoxW(m_hWnd, (L"아카이브에서 오류가 발견되었습니다:\n" + errMsg).c_str(), L"오류", MB_ICONERROR);
+        }
+    }
+
+    void MainWindow::ExecuteSelectedFile()
+    {
+        int sel = ListView_GetNextItem(m_hListView, -1, LVNI_SELECTED);
+        if (sel < 0) return;
+
+        LVITEMW lvi = { 0 };
+        lvi.mask = LVIF_PARAM;
+        lvi.iItem = sel;
+        ListView_GetItem(m_hListView, &lvi);
+
+        if (lvi.lParam <= 0) return; // Not a file (.. or folder)
+
+        const ArchiveEntry* pEntry = reinterpret_cast<const ArchiveEntry*>(lvi.lParam);
+        if (!pEntry) return;
+
+        wchar_t tempBase[MAX_PATH];
+        GetTempPathW(MAX_PATH, tempBase);
+        std::wstring runTempDir = PathHelper::Combine(tempBase, L"EasyZip_Run");
+        PathHelper::EnsureDirectoryExists(runTempDir);
+
+        std::wstring errMsg;
+        bool ok = ArchiveEngine::ExtractSelected(
+            m_currentArchivePath,
+            runTempDir,
+            { pEntry->fullPath },
+            nullptr,
+            nullptr,
+            &errMsg,
+            m_currentCodepage,
+            m_hWnd,
+            m_archivePasswordUtf8,
+            m_currentFolder);
+
+        if (ok)
+        {
+            std::wstring extractedFile = PathHelper::Combine(runTempDir, pEntry->name);
+            if (PathHelper::FileExists(extractedFile))
+            {
+                ShellExecuteW(m_hWnd, L"open", extractedFile.c_str(), NULL, runTempDir.c_str(), SW_SHOWNORMAL);
+            }
+        }
+        else if (!errMsg.empty())
+        {
+            MessageBoxW(m_hWnd, (L"파일 실행을 위한 압축 풀기 실패:\n" + errMsg).c_str(), L"오류", MB_ICONERROR);
+        }
+    }
+
+    void MainWindow::HandleBeginDrag()
+    {
+        if (m_currentArchivePath.empty()) return;
+
+        std::vector<std::wstring> targetPaths;
+        std::vector<std::wstring> targetNames;
+
+        int idx = -1;
+        while ((idx = ListView_GetNextItem(m_hListView, idx, LVNI_SELECTED)) != -1)
+        {
+            LVITEMW lvi = { 0 };
+            lvi.mask = LVIF_PARAM;
+            lvi.iItem = idx;
+            ListView_GetItem(m_hListView, &lvi);
+
+            if (lvi.lParam == -1) continue; // Skip ".."
+
+            wchar_t pathBuf[MAX_PATH * 2] = { 0 };
+            ListView_GetItemText(m_hListView, idx, 5, pathBuf, _countof(pathBuf));
+
+            wchar_t nameBuf[MAX_PATH * 2] = { 0 };
+            ListView_GetItemText(m_hListView, idx, 0, nameBuf, _countof(nameBuf));
+
+            if (wcslen(pathBuf) > 0)
+            {
+                targetPaths.push_back(pathBuf);
+            }
+            else
+            {
+                std::wstring fullSub = m_currentFolder.empty() ? nameBuf : (m_currentFolder + L"\\" + nameBuf);
+                targetPaths.push_back(fullSub);
+            }
+            targetNames.push_back(nameBuf);
+        }
+
+        if (targetPaths.empty()) return;
+
+        // If any selected item is encrypted and password is not yet cached, prompt before starting drag!
+        // This ensures the mouse capture is not broken during drag-and-drop.
+        bool hasEncrypted = false;
+        for (const auto& target : targetPaths)
+        {
+            for (const auto& e : m_entries)
+            {
+                if (e.isEncrypted && (e.fullPath == target || e.fullPath.rfind(target + L"\\", 0) == 0))
+                {
+                    hasEncrypted = true;
+                    break;
+                }
+            }
+            if (hasEncrypted) break;
+        }
+
+        if (hasEncrypted && m_archivePasswordUtf8.empty())
+        {
+            if (!PasswordDlg::Prompt(m_hWnd, m_currentArchivePath, m_archivePasswordUtf8))
+            {
+                return; // User canceled password entry -> abort drag
+            }
+        }
+
+        // Create temporary drop folder
+        wchar_t tempBase[MAX_PATH];
+        GetTempPathW(MAX_PATH, tempBase);
+        std::wstring dropDir = PathHelper::Combine(tempBase, L"EasyZip_Drop_" + std::to_wstring(GetTickCount64()));
+        PathHelper::EnsureDirectoryExists(dropDir);
+
+        std::wstring errMsg;
+        bool ok = ArchiveEngine::ExtractSelected(
+            m_currentArchivePath,
+            dropDir,
+            targetPaths,
+            nullptr,
+            nullptr,
+            &errMsg,
+            m_currentCodepage,
+            m_hWnd,
+            m_archivePasswordUtf8,
+            m_currentFolder);
+
+        if (!ok) return;
+
+        std::vector<std::wstring> extractedFiles;
+        for (const auto& name : targetNames)
+        {
+            std::wstring fullPath = PathHelper::Combine(dropDir, name);
+            if (PathHelper::FileExists(fullPath) || PathHelper::DirectoryExists(fullPath))
+            {
+                extractedFiles.push_back(fullPath);
+            }
+        }
+
+        if (extractedFiles.empty()) return;
+
+        IDataObject* pDataObject = nullptr;
+        if (SUCCEEDED(OleDataObject::Create(extractedFiles, &pDataObject)))
+        {
+            OleDropSource* pDropSource = new OleDropSource();
+            DWORD dwEffect = 0;
+            DoDragDrop(pDataObject, pDropSource, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK, &dwEffect);
+            pDropSource->Release();
+            pDataObject->Release();
         }
     }
 
@@ -982,7 +1166,53 @@ namespace EasyZip
                             std::wstring target = pThis->m_currentFolder.empty() ? folderName : (pThis->m_currentFolder + L"\\" + folderName);
                             pThis->NavigateToFolder(target);
                         }
+                        else if (lvi.lParam > 0) // File
+                        {
+                            pThis->ExecuteSelectedFile();
+                        }
                     }
+                    return 0;
+                }
+
+                // ListView Enter key navigation / execution
+                if (pnm->idFrom == IDC_LISTVIEW && pnm->code == LVN_KEYDOWN)
+                {
+                    NMLVKEYDOWN* pnkd = reinterpret_cast<NMLVKEYDOWN*>(lParam);
+                    if (pnkd->wVKey == VK_RETURN)
+                    {
+                        int sel = ListView_GetNextItem(pThis->m_hListView, -1, LVNI_SELECTED);
+                        if (sel >= 0)
+                        {
+                            LVITEMW lvi = { 0 };
+                            lvi.mask = LVIF_PARAM;
+                            lvi.iItem = sel;
+                            ListView_GetItem(pThis->m_hListView, &lvi);
+
+                            if (lvi.lParam == -1)
+                            {
+                                std::wstring parent = PathHelper::GetDirectory(pThis->m_currentFolder);
+                                pThis->NavigateToFolder(parent);
+                            }
+                            else if (lvi.lParam == -2)
+                            {
+                                wchar_t folderName[MAX_PATH] = { 0 };
+                                ListView_GetItemText(pThis->m_hListView, sel, 0, folderName, _countof(folderName));
+                                std::wstring target = pThis->m_currentFolder.empty() ? folderName : (pThis->m_currentFolder + L"\\" + folderName);
+                                pThis->NavigateToFolder(target);
+                            }
+                            else if (lvi.lParam > 0)
+                            {
+                                pThis->ExecuteSelectedFile();
+                            }
+                        }
+                        return 0;
+                    }
+                }
+
+                // ListView Drag & Drop start
+                if (pnm->idFrom == IDC_LISTVIEW && (pnm->code == LVN_BEGINDRAG || pnm->code == LVN_BEGINRDRAG))
+                {
+                    pThis->HandleBeginDrag();
                     return 0;
                 }
 

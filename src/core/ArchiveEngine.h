@@ -15,6 +15,7 @@ namespace EasyZip
         std::wstring name;              // File/folder display name (e.g. "document.pdf")
         std::wstring fullPath;          // Normalized relative path in archive (e.g. "work/document.pdf")
         bool isDirectory = false;
+        bool isEncrypted = false;
         uint64_t uncompressedSize = 0;
         uint64_t compressedSize = 0;
         FILETIME lastModified = { 0, 0 };
@@ -55,7 +56,8 @@ namespace EasyZip
             const std::wstring& archivePath,
             std::vector<ArchiveEntry>& outEntries,
             std::wstring& outErrorMessage,
-            const std::string& codepage = "");
+            const std::string& codepage = "",
+            HWND hWndOwner = NULL);
 
         // Extracts all files to destDir
         static bool ExtractAll(
@@ -64,7 +66,9 @@ namespace EasyZip
             ProgressCallback onProgress = nullptr,
             CancelCallback isCanceled = nullptr,
             std::wstring* outErrorMessage = nullptr,
-            const std::string& codepage = "");
+            const std::string& codepage = "",
+            HWND hWndOwner = NULL,
+            const std::string& defaultPassphrase = "");
 
         // Extracts only specified files/folders to destDir
         static bool ExtractSelected(
@@ -74,7 +78,10 @@ namespace EasyZip
             ProgressCallback onProgress = nullptr,
             CancelCallback isCanceled = nullptr,
             std::wstring* outErrorMessage = nullptr,
-            const std::string& codepage = "");
+            const std::string& codepage = "",
+            HWND hWndOwner = NULL,
+            const std::string& defaultPassphrase = "",
+            const std::wstring& stripPrefix = L"");
 
         // Compresses multiple source files/folders into destArchive
         static bool Compress(
@@ -82,6 +89,7 @@ namespace EasyZip
             const std::wstring& destArchive,
             const std::wstring& format = L"zip",
             int level = 5,
+            const std::wstring& password = L"",
             ProgressCallback onProgress = nullptr,
             CancelCallback isCanceled = nullptr,
             std::wstring* outErrorMessage = nullptr);
@@ -92,7 +100,8 @@ namespace EasyZip
             ProgressCallback onProgress = nullptr,
             CancelCallback isCanceled = nullptr,
             std::wstring* outErrorMessage = nullptr,
-            const std::string& codepage = "");
+            const std::string& codepage = "",
+            HWND hWndOwner = NULL);
     };
 }
 

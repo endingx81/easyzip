@@ -30,6 +30,8 @@ namespace EasyZip
         void ExtractCurrentArchive(bool selectedOnly = false);
         void CompressFiles(const std::vector<std::wstring>& files);
         void TestCurrentArchive();
+        void ExecuteSelectedFile();
+        void HandleBeginDrag();
 
     private:
         MainWindow();
@@ -67,6 +69,7 @@ namespace EasyZip
         std::wstring m_currentArchivePath;
         std::wstring m_currentFolder = L""; // current directory path inside archive
         std::string m_currentCodepage = ""; // Empty means Auto (system default CP949)
+        std::string m_archivePasswordUtf8 = ""; // Cached archive password for seamless drag&drop and execution
         UINT m_activeCodepageMenuId = IDM_CODEPAGE_AUTO;
         std::vector<ArchiveEntry> m_entries;
         std::unordered_map<HTREEITEM, TreeNodeData> m_treeMap;

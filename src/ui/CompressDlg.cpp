@@ -81,14 +81,20 @@ namespace EasyZip
             // Destination path
             SetDlgItemTextW(hDlg, IDC_EDT_DEST_PATH, pState->options->destArchivePath.c_str());
 
-            // Formats combo
+            // Formats combo (Only ZIP and 7Z - TAR removed per user request)
             HWND hFmt = GetDlgItem(hDlg, IDC_CMB_FORMAT);
             SendMessageW(hFmt, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"ZIP"));
             SendMessageW(hFmt, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"7Z"));
-            SendMessageW(hFmt, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"TAR"));
-            if (pState->options->format == L"7z") SendMessageW(hFmt, CB_SETCURSEL, 1, 0);
-            else if (pState->options->format == L"tar") SendMessageW(hFmt, CB_SETCURSEL, 2, 0);
-            else SendMessageW(hFmt, CB_SETCURSEL, 0, 0);
+            if (pState->options->format == L"7z")
+            {
+                SendMessageW(hFmt, CB_SETCURSEL, 1, 0);
+                EnableWindow(GetDlgItem(hDlg, IDC_EDT_PASSWORD), FALSE);
+            }
+            else
+            {
+                SendMessageW(hFmt, CB_SETCURSEL, 0, 0);
+                EnableWindow(GetDlgItem(hDlg, IDC_EDT_PASSWORD), TRUE);
+            }
 
             // Levels combo
             HWND hLvl = GetDlgItem(hDlg, IDC_CMB_LEVEL);
@@ -137,7 +143,6 @@ namespace EasyZip
                 ofn.hwndOwner = hDlg;
                 ofn.lpstrFilter = L"ZIP 아카이브 (*.zip)\0*.zip\0"
                                   L"7-Zip 아카이브 (*.7z)\0*.7z\0"
-                                  L"TAR 아카이브 (*.tar)\0*.tar\0"
                                   L"모든 파일 (*.*)\0*.*\0";
                 ofn.lpstrFile = fileBuf;
                 ofn.nMaxFile = _countof(fileBuf);
@@ -154,7 +159,7 @@ namespace EasyZip
                 if (HIWORD(wParam) == CBN_SELCHANGE)
                 {
                     int sel = static_cast<int>(SendDlgItemMessageW(hDlg, IDC_CMB_FORMAT, CB_GETCURSEL, 0, 0));
-                    std::wstring ext = (sel == 1) ? L".7z" : (sel == 2 ? L".tar" : L".zip");
+                    std::wstring ext = (sel == 1) ? L".7z" : L".zip";
 
                     wchar_t current[MAX_PATH * 2] = { 0 };
                     GetDlgItemTextW(hDlg, IDC_EDT_DEST_PATH, current, _countof(current));
@@ -162,6 +167,20 @@ namespace EasyZip
                     std::wstring dir = PathHelper::GetDirectory(current);
                     std::wstring updated = PathHelper::Combine(dir, base + ext);
                     SetDlgItemTextW(hDlg, IDC_EDT_DEST_PATH, updated.c_str());
+
+                    // 7z format does not support write encryption in libarchive -> disable password
+                    bool isZip = (sel == 0);
+                    EnableWindow(GetDlgItem(hDlg, IDC_EDT_PASSWORD), isZip);
+                    if (!isZip)
+                    {
+                        wchar_t curPass[128] = { 0 };
+                        GetDlgItemTextW(hDlg, IDC_EDT_PASSWORD, curPass, _countof(curPass));
+                        if (wcslen(curPass) > 0)
+                        {
+                            MessageBoxW(hDlg, L"7z 형식은 압축 라이브러리 엔진 제약으로 암호화 생성을 지원하지 않습니다.\n암호 압축이 필요한 경우 ZIP 형식을 선택해 주세요.", L"알림", MB_ICONINFORMATION);
+                            SetDlgItemTextW(hDlg, IDC_EDT_PASSWORD, L"");
+                        }
+                    }
                 }
                 return TRUE;
 
@@ -179,7 +198,7 @@ namespace EasyZip
                 pState->options->destArchivePath = pathBuf;
 
                 int fmtSel = static_cast<int>(SendDlgItemMessageW(hDlg, IDC_CMB_FORMAT, CB_GETCURSEL, 0, 0));
-                pState->options->format = (fmtSel == 1) ? L"7z" : (fmtSel == 2 ? L"tar" : L"zip");
+                pState->options->format = (fmtSel == 1) ? L"7z" : L"zip";
 
                 int lvlSel = static_cast<int>(SendDlgItemMessageW(hDlg, IDC_CMB_LEVEL, CB_GETCURSEL, 0, 0));
                 int lvls[] = { 0, 1, 5, 7, 9 };
@@ -188,6 +207,13 @@ namespace EasyZip
                 wchar_t passBuf[128] = { 0 };
                 GetDlgItemTextW(hDlg, IDC_EDT_PASSWORD, passBuf, _countof(passBuf));
                 pState->options->password = passBuf;
+
+                if (pState->options->format == L"7z" && !pState->options->password.empty())
+                {
+                    MessageBoxW(hDlg, L"7z 형식은 암호화를 지원하지 않습니다.\n암호 압축이 필요한 경우 ZIP 형식을 선택해 주세요.", L"알림", MB_ICONWARNING);
+                    SetFocus(GetDlgItem(hDlg, IDC_CMB_FORMAT));
+                    return TRUE;
+                }
 
                 pState->confirmed = true;
                 EndDialog(hDlg, IDOK);

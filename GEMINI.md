@@ -339,3 +339,29 @@ AI 에이전트(당신)가 개발 중 **실제로 저질렀던 치명적인 실�
 - **방지 원칙**:
   1. **표준 기본 동사(`열기(&O)`) 일원화**: ProgID의 `shell\open` 텍스트는 윈도우 표준에 맞춰 순수 **`열기(&O)`**로 등록하여 더블클릭 기본 실행 항목으로 유지할 것.
   2. **서브메뉴 모드 조건부 노출**: `EasyZipShell.dll`에서는 **'하나의 메뉴로 묶어보기'(`s.showSubmenu`) 서브메뉴 모드일 때만** `EasyZip ▶` 폴더 안쪽에 `EasyZip으로 열기(&O)`를 포함하고, 기본 펼침 모드에서는 상단 기본 `열기`와의 중복 방지를 위해 DLL 메뉴 항목에서 완전히 배제할 것.
+
+### 🔐 libarchive 암호화 아카이브 복호화 시 `archive_read_add_passphrase` 상태 머신 위반 에러 방지 및 콜백 단일화 원칙
+- **실제 실수**: 암호화된 파일 압축 해제 시 헤더 루프 내부에서 `archive_read_add_passphrase`를 직접 호출하여, `INTERNAL ERROR: Function 'archive_read_add_passphrase' invoked with archive structure in state 'data', should be in state 'new'` 치명적 오류(-30)를 발생시키고 데이터 블록 읽기가 실패하게 만듦.
+- **방지 원칙**:
+  1. **상태 머신 준수**: `archive_read_add_passphrase`는 반드시 아카이브를 열기 전(`ARCHIVE_STATE_NEW`)에만 호출해야 하며, 아카이브가 열린 후나 헤더 루프 내부에서는 절대로 호출해서는 안 됨.
+  2. **콜백 기반 자동 호출 단일화**: libarchive는 복호화 시점에 암호가 필요하거나 기존 암호가 틀렸을 때 스스로 `archive_read_set_passphrase_callback`을 호출함. 따라서 헤더 루프에서 수동으로 콜백이나 패스프레이즈 추가를 시도하지 말고, 오직 등록된 패스프레이즈 콜백 내부에서만 `PasswordDlg::Prompt`로 사용자 입력을 받아 `const char*`로 반환하도록 일원화할 것.
+  3. **비밀번호 실패 재시도 처리**: 이전에 암호를 반환했음에도 콜백이 다시 호출된 경우는 암호가 틀려 복호화에 실패한 상황이므로, 캐시된 암호를 비우고 다시 사용자에게 암호 입력창을 띄워 올바른 암호를 입력할 기회를 제공할 것.
+  4. **부모 윈도우 명시 전달**: 다이얼로그 호출 시 진행률 창(`progress.GetHwnd()`) 또는 메인 윈도우(`m_hWnd`)를 부모 핸들로 명시 전달하여 암호 입력창이 백그라운드에 묻히지 않고 최상위 모달로 사용자 포커스를 유지하도록 할 것.
+
+### 🖱️ 아카이버 파일 목록에서의 직접 실행(`ShellExecuteW`) 및 OLE 드래그 아웃(`DoDragDrop`, `CF_HDROP`) 원칙
+- **실제 실수**:
+  1. 메인 창 목록에서 파일 항목을 더블클릭하거나 Enter를 쳤을 때 아무런 반응이 없고, 마우스로 바탕화면이나 다른 폴더 창으로 드래그 앤 드롭해도 파일이 추출되지 않음.
+  2. 일반 파일은 드래그 앤 드롭이 되는데 실행 파일(`.exe`)만 탐색기나 바탕화면으로 드래그 앤 드롭 시 거부되거나 드롭 금지(🚫) 아이콘이 뜸.
+  3. 암호가 걸린 파일은 드래그 앤 드롭을 시작하는 순간 마우스 버튼을 누른 상태에서 암호 모달창이 뜨며 마우스 캡처가 풀려 `DoDragDrop`이 즉시 취소/종료됨.
+- **방지 원칙**:
+  1. **개별 파일 즉시 실행**: 리스트뷰 `NM_DBLCLK` 또는 `LVN_KEYDOWN`(Enter) 감지 시, 선택된 파일 항목을 임시 폴더(`%TEMP%\EasyZip_Run`)에 단독 추출 후 `ShellExecuteW(..., L"open", ...)`로 즉시 실행할 것.
+  2. **OLE Drag & Drop 추출**: `OleInitialize(NULL)`을 필수로 호출하고, 리스트뷰 `LVN_BEGINDRAG` 감지 시 선택된 모든 파일/폴더를 임시 디렉터리(`%TEMP%\EasyZip_Drop_<timestamp>`)에 추출한 뒤, `CF_HDROP` 기반 `OleDataObject` 및 `OleDropSource`를 생성하여 `DoDragDrop`을 호출할 것.
+  3. **현재 탐색 폴더 기준 상대 경로 분리(`stripPrefix`)**: 아카이브 내부 하위 폴더(예: `docs\`)에 들어간 상태에서 특정 파일을 드래그할 때 상위 폴더 경로(`docs`)를 제거하고 현재 폴더 기준 이름만으로 추출해야, 사용자가 바탕화면에 드롭했을 때 불필요한 상위 폴더 없이 해당 파일/폴더가 바로 드롭 위치에 놓임.
+  4. **exe 및 특수 파일 드롭을 위한 `CFSTR_PREFERREDDROPEFFECT` 등록 및 `DROPEFFECT_LINK` 허용**: Windows 탐색기는 실행 파일(`.exe`) 등을 수락할 때 바로 가기(`DROPEFFECT_LINK`)를 고려하거나 셸 권장 효과를 검사함. `DoDragDrop`에 `DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK`를 모두 개방하고, `OleDataObject`에 `CFSTR_PREFERREDDROPEFFECT`(`DROPEFFECT_COPY`)를 등록하여 탐색기가 실행 파일(`.exe`)을 포함한 모든 파일을 안전하게 복사(`COPY`)하도록 보장할 것.
+  5. **암호 파일 드래그 시 마우스 캡처 풀림 방지 및 암호 사전 캐싱**: 마우스 드래그 제스처 도중에 모달 창이 뜨면 마우스 버튼 상태가 풀려 드래그가 깨짐. 암호가 걸린 아카이브를 열 때(`OpenArchive`) 암호를 미리 입력받아 `m_archivePasswordUtf8`에 보관하고, 드래그 시 캐시된 암호로 대화상자 없이 즉시 추출하여 마우스 캡처를 온전히 유지할 것.
+
+### 🔒 7z 압축 생성 시 엔진 암호화 미지원 제약 및 UI 방어 원칙
+- **실제 사실 및 제약**: `libarchive` 엔진은 암호화된 7z의 **읽기/해제(Read)**는 완벽히 지원하지만, **쓰기(Write) 엔진은 구조상 암호화 기능이 미구현**되어 있음.
+- **방지 원칙**:
+  1. 압축 대화상자(`CompressDlg`)에서 사용자가 `7z` 형식을 선택하면 비밀번호 입력 필드를 비활성화(`EnableWindow(FALSE)`)하고, 암호 압축이 필요한 경우 표준 ZIP 형식을 선택하도록 명확히 안내할 것.
+  2. 일반 사용자에게 불필요하거나 혼란을 주는 포맷(TAR 등)은 압축 생성 콤보박스에서 과감히 배제하여 UI를 직관적으로 정돈할 것.

@@ -1,6 +1,7 @@
 #include "ArchiveEngine.h"
 #include "PathHelper.h"
 #include "EncodingHelper.h"
+#include "PasswordDlg.h"
 #include <archive.h>
 #include <archive_entry.h>
 #include <chrono>
@@ -9,6 +10,40 @@
 
 namespace EasyZip
 {
+    struct ArchivePasswordContext
+    {
+        HWND hWndOwner = NULL;
+        std::wstring archivePath;
+        std::string passphraseUtf8;
+        int failedAttempts = 0;
+        bool canceled = false;
+    };
+
+    static const char* ArchivePassphraseCallback(struct archive*, void* client_data)
+    {
+        ArchivePasswordContext* ctx = reinterpret_cast<ArchivePasswordContext*>(client_data);
+        if (!ctx || ctx->canceled) return nullptr;
+
+        // If we already had a passphrase and callback is called again, the previous one failed
+        if (!ctx->passphraseUtf8.empty())
+        {
+            ctx->failedAttempts++;
+            ctx->passphraseUtf8.clear();
+        }
+
+        HWND hParent = ctx->hWndOwner ? ctx->hWndOwner : GetActiveWindow();
+        std::string inputPass;
+        if (PasswordDlg::Prompt(hParent, ctx->archivePath, inputPass))
+        {
+            ctx->passphraseUtf8 = inputPass;
+            return ctx->passphraseUtf8.c_str();
+        }
+        else
+        {
+            ctx->canceled = true;
+            return nullptr;
+        }
+    }
     static FILETIME UnixTimeToFILETIME(time_t t)
     {
         LONGLONG ll = Int32x32To64(static_cast<DWORD>(t), 10000000) + 116444736000000000;
@@ -202,7 +237,8 @@ namespace EasyZip
         const std::wstring& archivePath,
         std::vector<ArchiveEntry>& outEntries,
         std::wstring& outErrorMessage,
-        const std::string& codepage)
+        const std::string& codepage,
+        HWND hWndOwner)
     {
         outEntries.clear();
         outErrorMessage.clear();
@@ -210,6 +246,11 @@ namespace EasyZip
         struct archive* a = archive_read_new();
         archive_read_support_filter_all(a);
         archive_read_support_format_all(a);
+
+        ArchivePasswordContext pwdCtx;
+        pwdCtx.hWndOwner = hWndOwner;
+        pwdCtx.archivePath = archivePath;
+        archive_read_set_passphrase_callback(a, &pwdCtx, ArchivePassphraseCallback);
 
         ConfigureReaderCharset(a, codepage);
 
@@ -248,6 +289,7 @@ namespace EasyZip
             item.name = name;
             item.fullPath = cleanPath;
             item.isDirectory = isDir;
+            item.isEncrypted = (archive_entry_is_encrypted(entry) != 0);
             item.uncompressedSize = isDir ? 0 : archive_entry_size(entry);
             item.compressedSize = 0;
 
@@ -271,10 +313,12 @@ namespace EasyZip
         ProgressCallback onProgress,
         CancelCallback isCanceled,
         std::wstring* outErrorMessage,
-        const std::string& codepage)
+        const std::string& codepage,
+        HWND hWndOwner,
+        const std::string& defaultPassphrase)
     {
         std::vector<std::wstring> emptyTargets;
-        return ExtractSelected(archivePath, destDir, emptyTargets, onProgress, isCanceled, outErrorMessage, codepage);
+        return ExtractSelected(archivePath, destDir, emptyTargets, onProgress, isCanceled, outErrorMessage, codepage, hWndOwner, defaultPassphrase);
     }
 
     bool ArchiveEngine::ExtractSelected(
@@ -284,9 +328,17 @@ namespace EasyZip
         ProgressCallback onProgress,
         CancelCallback isCanceled,
         std::wstring* outErrorMessage,
-        const std::string& codepage)
+        const std::string& codepage,
+        HWND hWndOwner,
+        const std::string& defaultPassphrase,
+        const std::wstring& stripPrefix)
     {
         PathHelper::EnsureDirectoryExists(destDir);
+
+        ArchivePasswordContext pwdCtx;
+        pwdCtx.hWndOwner = hWndOwner;
+        pwdCtx.archivePath = archivePath;
+        pwdCtx.passphraseUtf8 = defaultPassphrase;
 
         std::unordered_set<std::wstring> targetSet;
         for (const auto& t : targetPaths)
@@ -304,6 +356,11 @@ namespace EasyZip
             struct archive* aScan = archive_read_new();
             archive_read_support_filter_all(aScan);
             archive_read_support_format_all(aScan);
+            archive_read_set_passphrase_callback(aScan, &pwdCtx, ArchivePassphraseCallback);
+            if (!pwdCtx.passphraseUtf8.empty())
+            {
+                archive_read_add_passphrase(aScan, pwdCtx.passphraseUtf8.c_str());
+            }
             ConfigureReaderCharset(aScan, codepage);
 
             if (OpenArchiveRead(aScan, archivePath, 1024 * 512) == ARCHIVE_OK)
@@ -346,6 +403,11 @@ namespace EasyZip
         struct archive* a = archive_read_new();
         archive_read_support_filter_all(a);
         archive_read_support_format_all(a);
+        archive_read_set_passphrase_callback(a, &pwdCtx, ArchivePassphraseCallback);
+        if (!pwdCtx.passphraseUtf8.empty())
+        {
+            archive_read_add_passphrase(a, pwdCtx.passphraseUtf8.c_str());
+        }
         ConfigureReaderCharset(a, codepage);
 
         if (OpenArchiveRead(a, archivePath, 1024 * 1024) != ARCHIVE_OK)
@@ -378,6 +440,13 @@ namespace EasyZip
                 return false;
             }
 
+            if (pwdCtx.canceled)
+            {
+                hasExtractionError = true;
+                errorList.push_back(L"사용자가 암호 입력을 취소했습니다.");
+                break;
+            }
+
             std::wstring rawPath = GetEntryPath(entry, cpId);
             if (rawPath.empty()) continue;
 
@@ -402,7 +471,23 @@ namespace EasyZip
                 if (!match) continue;
             }
 
-            std::wstring targetFullPath = PathHelper::Combine(destDir, safeRelative);
+            std::wstring outRelative = safeRelative;
+            if (!stripPrefix.empty())
+            {
+                std::wstring normPrefix = PathHelper::Normalize(stripPrefix);
+                while (!normPrefix.empty() && normPrefix.back() == L'\\') normPrefix.pop_back();
+
+                if (outRelative == normPrefix)
+                {
+                    outRelative = PathHelper::GetFileName(normPrefix);
+                }
+                else if (outRelative.rfind(normPrefix + L"\\", 0) == 0)
+                {
+                    outRelative = outRelative.substr(normPrefix.length() + 1);
+                }
+            }
+
+            std::wstring targetFullPath = PathHelper::Combine(destDir, outRelative);
 
             if (isDir)
             {
@@ -573,6 +658,7 @@ namespace EasyZip
         const std::wstring& destArchive,
         const std::wstring& format,
         int level,
+        const std::wstring& password,
         ProgressCallback onProgress,
         CancelCallback isCanceled,
         std::wstring* outErrorMessage)
@@ -620,6 +706,12 @@ namespace EasyZip
         }
 
         struct archive* a = archive_write_new();
+        if (!password.empty())
+        {
+            std::string passUtf8 = PathHelper::WideToUtf8(password);
+            archive_write_set_passphrase(a, passUtf8.c_str());
+        }
+
         if (format == L"7z")
         {
             archive_write_set_format_7zip(a);
@@ -633,6 +725,11 @@ namespace EasyZip
             archive_write_set_format_zip(a);
             // Ensure UTF-8 filenames in ZIP archives
             archive_write_set_format_option(a, "zip", "hdrcharset", "UTF-8");
+            if (!password.empty())
+            {
+                archive_write_set_format_option(a, "zip", "encryption", "zipcrypt");
+            }
+
             if (level == 0)
             {
                 archive_write_set_format_option(a, "zip", "compression", "store");
@@ -773,11 +870,18 @@ namespace EasyZip
         ProgressCallback onProgress,
         CancelCallback isCanceled,
         std::wstring* outErrorMessage,
-        const std::string& codepage)
+        const std::string& codepage,
+        HWND hWndOwner)
     {
         struct archive* a = archive_read_new();
         archive_read_support_filter_all(a);
         archive_read_support_format_all(a);
+
+        ArchivePasswordContext pwdCtx;
+        pwdCtx.hWndOwner = hWndOwner;
+        pwdCtx.archivePath = archivePath;
+        archive_read_set_passphrase_callback(a, &pwdCtx, ArchivePassphraseCallback);
+
         ConfigureReaderCharset(a, codepage);
 
         if (OpenArchiveRead(a, archivePath, 1024 * 512) != ARCHIVE_OK)
@@ -802,6 +906,13 @@ namespace EasyZip
             {
                 archive_read_free(a);
                 if (outErrorMessage) *outErrorMessage = L"테스트가 취소되었습니다.";
+                return false;
+            }
+
+            if (pwdCtx.canceled)
+            {
+                archive_read_free(a);
+                if (outErrorMessage) *outErrorMessage = L"사용자가 암호 입력을 취소했습니다.";
                 return false;
             }
 

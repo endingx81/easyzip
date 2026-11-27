@@ -18,6 +18,7 @@
 #define IDD_COMPRESS                202
 #define IDD_SETTINGS                203
 #define IDD_ABOUT                   204
+#define IDD_PASSWORD                205
 
 // Main Menu Commands
 #define IDM_FILE_OPEN               1001
@@ -114,4 +115,9 @@
 #define IDC_CHK_DEF_OPEN_FOLDER     5041
 #define IDC_CMB_DEF_FORMAT          5042
 #define IDC_CMB_DEF_LEVEL           5043
+
+// Password Prompt Dialog
+#define IDC_EDT_INPUT_PASSWORD      6001
+#define IDC_CHK_SHOW_PASSWORD       6002
+#define IDC_LBL_PASSWORD_HINT       6003
 

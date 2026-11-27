@@ -115,6 +115,8 @@ copy /y "$(ProjectDir)res\EasyZip.ico" "$(OutDir)" &gt;nul</Command>
     <ClInclude Include="src\core\PathHelper.h" />
     <ClInclude Include="src\ui\CompressDlg.h" />
     <ClInclude Include="src\ui\MainWindow.h" />
+    <ClInclude Include="src\ui\OleDropSource.h" />
+    <ClInclude Include="src\ui\PasswordDlg.h" />
     <ClInclude Include="src\ui\ProgressDlg.h" />
     <ClInclude Include="src\ui\SettingsDlg.h" />
     <ClInclude Include="src\ui\SystemIconHelper.h" />
@@ -129,6 +131,8 @@ copy /y "$(ProjectDir)res\EasyZip.ico" "$(OutDir)" &gt;nul</Command>
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\ui\CompressDlg.cpp" />
     <ClCompile Include="src\ui\MainWindow.cpp" />
+    <ClCompile Include="src\ui\OleDropSource.cpp" />
+    <ClCompile Include="src\ui\PasswordDlg.cpp" />
     <ClCompile Include="src\ui\ProgressDlg.cpp" />
     <ClCompile Include="src\ui\SettingsDlg.cpp" />
     <ClCompile Include="src\ui\SystemIconHelper.cpp" />

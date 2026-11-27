@@ -34,7 +34,9 @@ static void PerformExtractHere(const std::vector<std::wstring>& archives)
             parentDir,
             [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
             [&]() { return progress.IsCanceled(); },
-            &errMsg);
+            &errMsg,
+            "",
+            progress.GetHwnd());
 
         progress.Close();
 
@@ -80,7 +82,9 @@ static void PerformSmartExtract(const std::vector<std::wstring>& archives)
             targetDir,
             [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
             [&]() { return progress.IsCanceled(); },
-            &errMsg);
+            &errMsg,
+            "",
+            progress.GetHwnd());
 
         progress.Close();
 
@@ -111,7 +115,9 @@ static void PerformExtractToFolder(const std::vector<std::wstring>& archives)
             targetDir,
             [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
             [&]() { return progress.IsCanceled(); },
-            &errMsg);
+            &errMsg,
+            "",
+            progress.GetHwnd());
 
         progress.Close();
 
@@ -152,6 +158,7 @@ static void PerformFastZip(const std::vector<std::wstring>& sources)
         destArchive,
         L"zip",
         5,
+        L"",
         [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
         [&]() { return progress.IsCanceled(); },
         &errMsg);
@@ -161,6 +168,13 @@ static void PerformFastZip(const std::vector<std::wstring>& sources)
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow)
 {
+    // Initialize OLE / COM for Drag and Drop operations (RAII)
+    struct OleScopeInit
+    {
+        OleScopeInit() { OleInitialize(NULL); }
+        ~OleScopeInit() { OleUninitialize(); }
+    } oleScopeInit;
+
     // Set system default locale (Korean CP949 / UTF-8)
     std::setlocale(LC_ALL, "");
 
@@ -331,12 +345,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow)
                     opts.destArchivePath,
                     opts.format,
                     opts.level,
+                    opts.password,
                     [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
                     [&]() { return progress.IsCanceled(); },
                     &errMsg);
 
                 progress.Close();
             }
+            OleUninitialize();
             return 0;
         }
     }
@@ -347,7 +363,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow)
     {
         std::vector<std::wstring> batchedPaths;
         bool isPrimary = BatchCoordinator::Coordinate(L"compress_multi", inputFiles[0], batchedPaths);
-        if (!isPrimary) return 0;
+        if (!isPrimary)
+        {
+            OleUninitialize();
+            return 0;
+        }
 
         for (size_t i = 1; i < inputFiles.size(); ++i)
         {
@@ -366,12 +386,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow)
                 opts.destArchivePath,
                 opts.format,
                 opts.level,
+                opts.password,
                 [&](const ProgressInfo& info) { progress.UpdateProgress(info); },
                 [&]() { return progress.IsCanceled(); },
                 &errMsg);
 
             progress.Close();
         }
+        OleUninitialize();
         return 0;
     }
 
@@ -380,6 +402,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow)
     if (!pMain->Initialize(hInstance, nCmdShow))
     {
         delete pMain;
+        OleUninitialize();
         return 1;
     }
 
@@ -403,5 +426,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR, int nCmdShow)
     }
 
     delete pMain;
+    OleUninitialize();
     return static_cast<int>(msg.wParam);
 }
